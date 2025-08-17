@@ -1,3 +1,8 @@
+/*
+ * Copyright 2025 - Cowboy AI, LLC.
+ * All rights reserved.
+ */
+
 use chrono::{DateTime, Duration, Utc};
 use std::collections::VecDeque;
 use crate::domain::{events::*, commands::*, value_objects::*, errors::*};

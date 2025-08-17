@@ -1,3 +1,8 @@
+/*
+ * Copyright 2025 - Cowboy AI, LLC.
+ * All rights reserved.
+ */
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

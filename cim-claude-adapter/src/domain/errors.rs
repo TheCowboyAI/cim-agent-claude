@@ -1,3 +1,8 @@
+/*
+ * Copyright 2025 - Cowboy AI, LLC.
+ * All rights reserved.
+ */
+
 use thiserror::Error;
 use crate::domain::conversation_aggregate::ConversationState;
 

@@ -1,6 +1,10 @@
+/*
+ * Copyright 2025 - Cowboy AI, LLC.
+ * All rights reserved.
+ */
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use crate::domain::value_objects::*;
 
 /// Domain events for the Claude API adapter (past tense, business-focused)

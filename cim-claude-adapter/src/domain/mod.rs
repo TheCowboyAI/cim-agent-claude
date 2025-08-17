@@ -1,3 +1,8 @@
+/*
+ * Copyright 2025 - Cowboy AI, LLC.
+ * All rights reserved.
+ */
+
 pub mod conversation_aggregate;
 pub mod events;
 pub mod commands;

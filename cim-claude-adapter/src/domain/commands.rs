@@ -1,3 +1,8 @@
+/*
+ * Copyright 2025 - Cowboy AI, LLC.
+ * All rights reserved.
+ */
+
 use serde::{Deserialize, Serialize};
 use crate::domain::value_objects::*;
 
