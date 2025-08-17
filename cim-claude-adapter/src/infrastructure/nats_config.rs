@@ -390,6 +390,42 @@ impl NatsConfiguration {
                 num_replicas: Some(2),
                 compression: Some(true),
             },
+            
+            // Active configuration state (separate from general config)
+            KvStoreDefinition {
+                name: "CIM_CLAUDE_CONFIG_ACTIVE_KV".to_string(),
+                description: "Active configuration state (system prompts, model parameters)".to_string(),
+                max_bytes: Some(2 * 1024 * 1024 * 1024), // 2GB
+                history: Some(50), // Keep extensive configuration history
+                ttl: None, // Configuration doesn't expire
+                storage: StorageType::File,
+                num_replicas: Some(3),
+                compression: Some(true),
+            },
+            
+            // MCP tool registry
+            KvStoreDefinition {
+                name: "CIM_CLAUDE_MCP_TOOLS_KV".to_string(),
+                description: "MCP tool registry and configuration".to_string(),
+                max_bytes: Some(5 * 1024 * 1024 * 1024), // 5GB
+                history: Some(20), // Keep tool version history
+                ttl: Some("1y".to_string()),
+                storage: StorageType::File,
+                num_replicas: Some(3),
+                compression: Some(true),
+            },
+            
+            // Conversation control state
+            KvStoreDefinition {
+                name: "CIM_USER_CONV_CONTROL_KV".to_string(),
+                description: "Conversation control state and metadata".to_string(),
+                max_bytes: Some(2 * 1024 * 1024 * 1024), // 2GB
+                history: Some(15), // Keep control history
+                ttl: Some("1y".to_string()),
+                storage: StorageType::File,
+                num_replicas: Some(3),
+                compression: Some(true),
+            },
         ]
     }
 

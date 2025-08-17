@@ -124,6 +124,67 @@ pub enum ClaudeCommand {
     History,
 }
 
+/// Configuration management commands (separate from Claude API commands)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ConfigCommand {
+    /// Update system prompt
+    UpdateSystemPrompt,
+    /// Update model parameters (temperature, max_tokens, etc.)
+    UpdateModelParams,
+    /// Update conversation settings
+    UpdateConversationSettings,
+    /// Reset configuration to defaults
+    ResetConfig,
+    /// Import configuration from file/template
+    ImportConfig,
+    /// Export current configuration
+    ExportConfig,
+}
+
+/// NATS-connected tool commands (MCP tools communicate via NATS)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum NatsToolCommand {
+    /// Register new tool on NATS
+    RegisterTool,
+    /// Unregister tool from NATS
+    UnregisterTool,
+    /// Update tool configuration
+    UpdateTool,
+    /// Enable tool for conversation
+    EnableTool,
+    /// Disable tool for conversation
+    DisableTool,
+    /// Invoke tool with parameters (via NATS request-reply)
+    InvokeTool,
+    /// Health check tool (ping via NATS)
+    HealthCheckTool,
+}
+
+/// Conversation control commands (separate from content commands)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ConversationControlCommand {
+    /// Pause conversation processing
+    Pause,
+    /// Resume conversation processing
+    Resume,
+    /// Set conversation priority
+    SetPriority,
+    /// Add conversation tags/labels
+    AddTags,
+    /// Remove conversation tags/labels
+    RemoveTags,
+    /// Archive conversation
+    Archive,
+    /// Restore archived conversation
+    Restore,
+    /// Transfer conversation to different session
+    Transfer,
+    /// Fork conversation (create branch)
+    Fork,
+    /// Merge conversation branches
+    Merge,
+}
+
 impl fmt::Display for ClaudeCommand {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -133,6 +194,50 @@ impl fmt::Display for ClaudeCommand {
             ClaudeCommand::Upload => write!(f, "upload"),
             ClaudeCommand::Screenshot => write!(f, "screenshot"),
             ClaudeCommand::History => write!(f, "history"),
+        }
+    }
+}
+
+impl fmt::Display for ConfigCommand {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConfigCommand::UpdateSystemPrompt => write!(f, "update_system_prompt"),
+            ConfigCommand::UpdateModelParams => write!(f, "update_model_params"),
+            ConfigCommand::UpdateConversationSettings => write!(f, "update_conversation_settings"),
+            ConfigCommand::ResetConfig => write!(f, "reset_config"),
+            ConfigCommand::ImportConfig => write!(f, "import_config"),
+            ConfigCommand::ExportConfig => write!(f, "export_config"),
+        }
+    }
+}
+
+impl fmt::Display for NatsToolCommand {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            NatsToolCommand::RegisterTool => write!(f, "register_tool"),
+            NatsToolCommand::UnregisterTool => write!(f, "unregister_tool"),
+            NatsToolCommand::UpdateTool => write!(f, "update_tool"),
+            NatsToolCommand::EnableTool => write!(f, "enable_tool"),
+            NatsToolCommand::DisableTool => write!(f, "disable_tool"),
+            NatsToolCommand::InvokeTool => write!(f, "invoke_tool"),
+            NatsToolCommand::HealthCheckTool => write!(f, "health_check_tool"),
+        }
+    }
+}
+
+impl fmt::Display for ConversationControlCommand {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConversationControlCommand::Pause => write!(f, "pause"),
+            ConversationControlCommand::Resume => write!(f, "resume"),
+            ConversationControlCommand::SetPriority => write!(f, "set_priority"),
+            ConversationControlCommand::AddTags => write!(f, "add_tags"),
+            ConversationControlCommand::RemoveTags => write!(f, "remove_tags"),
+            ConversationControlCommand::Archive => write!(f, "archive"),
+            ConversationControlCommand::Restore => write!(f, "restore"),
+            ConversationControlCommand::Transfer => write!(f, "transfer"),
+            ConversationControlCommand::Fork => write!(f, "fork"),
+            ConversationControlCommand::Merge => write!(f, "merge"),
         }
     }
 }
@@ -157,6 +262,81 @@ pub enum ClaudeEvent {
     ProcessingError,
 }
 
+/// Configuration change events
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ConfigEvent {
+    /// System prompt updated
+    SystemPromptUpdated,
+    /// Model parameters changed
+    ModelParamsUpdated,
+    /// Conversation settings changed
+    ConversationSettingsUpdated,
+    /// Configuration reset to defaults
+    ConfigReset,
+    /// Configuration imported
+    ConfigImported,
+    /// Configuration exported
+    ConfigExported,
+    /// Configuration validation failed
+    ConfigValidationFailed,
+    /// Configuration backup created
+    ConfigBackupCreated,
+}
+
+/// NATS-connected tool events
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum NatsToolEvent {
+    /// Tool registered on NATS successfully
+    ToolRegistered,
+    /// Tool unregistered from NATS
+    ToolUnregistered,
+    /// Tool configuration updated
+    ToolUpdated,
+    /// Tool enabled for conversation
+    ToolEnabledForConversation,
+    /// Tool disabled for conversation
+    ToolDisabledForConversation,
+    /// Tool invocation started
+    ToolInvocationStarted,
+    /// Tool invocation completed successfully
+    ToolInvocationCompleted,
+    /// Tool invocation failed
+    ToolInvocationFailed,
+    /// Tool became unavailable (not responding on NATS)
+    ToolBecameUnavailable,
+    /// Tool became available (responding on NATS)
+    ToolBecameAvailable,
+    /// Tool health check completed
+    ToolHealthCheckCompleted,
+}
+
+/// Conversation control events
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ConversationControlEvent {
+    /// Conversation paused
+    Paused,
+    /// Conversation resumed
+    Resumed,
+    /// Priority changed
+    PriorityChanged,
+    /// Tags added
+    TagsAdded,
+    /// Tags removed
+    TagsRemoved,
+    /// Conversation archived
+    Archived,
+    /// Conversation restored
+    Restored,
+    /// Conversation transferred
+    Transferred,
+    /// Conversation forked
+    Forked,
+    /// Conversations merged
+    Merged,
+    /// Control action failed
+    ControlActionFailed,
+}
+
 impl fmt::Display for ClaudeEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -171,6 +351,57 @@ impl fmt::Display for ClaudeEvent {
             ClaudeEvent::RateLimited => write!(f, "rate_limited"),
             ClaudeEvent::ApiError => write!(f, "api_error"),
             ClaudeEvent::ProcessingError => write!(f, "processing_error"),
+        }
+    }
+}
+
+impl fmt::Display for ConfigEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConfigEvent::SystemPromptUpdated => write!(f, "system_prompt_updated"),
+            ConfigEvent::ModelParamsUpdated => write!(f, "model_params_updated"),
+            ConfigEvent::ConversationSettingsUpdated => write!(f, "conversation_settings_updated"),
+            ConfigEvent::ConfigReset => write!(f, "config_reset"),
+            ConfigEvent::ConfigImported => write!(f, "config_imported"),
+            ConfigEvent::ConfigExported => write!(f, "config_exported"),
+            ConfigEvent::ConfigValidationFailed => write!(f, "config_validation_failed"),
+            ConfigEvent::ConfigBackupCreated => write!(f, "config_backup_created"),
+        }
+    }
+}
+
+impl fmt::Display for NatsToolEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            NatsToolEvent::ToolRegistered => write!(f, "tool_registered"),
+            NatsToolEvent::ToolUnregistered => write!(f, "tool_unregistered"),
+            NatsToolEvent::ToolUpdated => write!(f, "tool_updated"),
+            NatsToolEvent::ToolEnabledForConversation => write!(f, "tool_enabled_for_conversation"),
+            NatsToolEvent::ToolDisabledForConversation => write!(f, "tool_disabled_for_conversation"),
+            NatsToolEvent::ToolInvocationStarted => write!(f, "tool_invocation_started"),
+            NatsToolEvent::ToolInvocationCompleted => write!(f, "tool_invocation_completed"),
+            NatsToolEvent::ToolInvocationFailed => write!(f, "tool_invocation_failed"),
+            NatsToolEvent::ToolBecameUnavailable => write!(f, "tool_became_unavailable"),
+            NatsToolEvent::ToolBecameAvailable => write!(f, "tool_became_available"),
+            NatsToolEvent::ToolHealthCheckCompleted => write!(f, "tool_health_check_completed"),
+        }
+    }
+}
+
+impl fmt::Display for ConversationControlEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConversationControlEvent::Paused => write!(f, "paused"),
+            ConversationControlEvent::Resumed => write!(f, "resumed"),
+            ConversationControlEvent::PriorityChanged => write!(f, "priority_changed"),
+            ConversationControlEvent::TagsAdded => write!(f, "tags_added"),
+            ConversationControlEvent::TagsRemoved => write!(f, "tags_removed"),
+            ConversationControlEvent::Archived => write!(f, "archived"),
+            ConversationControlEvent::Restored => write!(f, "restored"),
+            ConversationControlEvent::Transferred => write!(f, "transferred"),
+            ConversationControlEvent::Forked => write!(f, "forked"),
+            ConversationControlEvent::Merged => write!(f, "merged"),
+            ConversationControlEvent::ControlActionFailed => write!(f, "control_action_failed"),
         }
     }
 }
@@ -190,6 +421,55 @@ pub enum ClaudeQuery {
     Health,
 }
 
+/// Configuration query types
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ConfigQuery {
+    /// Get current configuration
+    GetConfig,
+    /// Get configuration history
+    GetConfigHistory,
+    /// Get default configuration
+    GetDefaultConfig,
+    /// Validate configuration
+    ValidateConfig,
+    /// Get configuration schema
+    GetConfigSchema,
+    /// Get configuration templates
+    GetConfigTemplates,
+}
+
+/// NATS-connected tool query types
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum NatsToolQuery {
+    /// Get available tools on NATS
+    GetAvailableTools,
+    /// Get tool details
+    GetToolDetails,
+    /// Get tools enabled for conversation
+    GetConversationTools,
+    /// Get tool invocation history
+    GetToolInvocationHistory,
+    /// Get tool health status
+    GetToolHealthStatus,
+}
+
+/// Conversation control query types
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ConversationControlQuery {
+    /// Get conversation metadata
+    GetMetadata,
+    /// Get conversation tags
+    GetTags,
+    /// Get conversation priority
+    GetPriority,
+    /// Get conversation status
+    GetStatus,
+    /// Get conversation branches
+    GetBranches,
+    /// Get conversation statistics
+    GetStatistics,
+}
+
 impl fmt::Display for ClaudeQuery {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -198,6 +478,77 @@ impl fmt::Display for ClaudeQuery {
             ClaudeQuery::Attachment => write!(f, "attachment"),
             ClaudeQuery::Usage => write!(f, "usage"),
             ClaudeQuery::Health => write!(f, "health"),
+        }
+    }
+}
+
+impl fmt::Display for ConfigQuery {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConfigQuery::GetConfig => write!(f, "get_config"),
+            ConfigQuery::GetConfigHistory => write!(f, "get_config_history"),
+            ConfigQuery::GetDefaultConfig => write!(f, "get_default_config"),
+            ConfigQuery::ValidateConfig => write!(f, "validate_config"),
+            ConfigQuery::GetConfigSchema => write!(f, "get_config_schema"),
+            ConfigQuery::GetConfigTemplates => write!(f, "get_config_templates"),
+        }
+    }
+}
+
+impl fmt::Display for NatsToolQuery {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            NatsToolQuery::GetAvailableTools => write!(f, "get_available_tools"),
+            NatsToolQuery::GetToolDetails => write!(f, "get_tool_details"),
+            NatsToolQuery::GetConversationTools => write!(f, "get_conversation_tools"),
+            NatsToolQuery::GetToolInvocationHistory => write!(f, "get_tool_invocation_history"),
+            NatsToolQuery::GetToolHealthStatus => write!(f, "get_tool_health_status"),
+        }
+    }
+}
+
+impl fmt::Display for ConversationControlQuery {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConversationControlQuery::GetMetadata => write!(f, "get_metadata"),
+            ConversationControlQuery::GetTags => write!(f, "get_tags"),
+            ConversationControlQuery::GetPriority => write!(f, "get_priority"),
+            ConversationControlQuery::GetStatus => write!(f, "get_status"),
+            ConversationControlQuery::GetBranches => write!(f, "get_branches"),
+            ConversationControlQuery::GetStatistics => write!(f, "get_statistics"),
+        }
+    }
+}
+
+/// MCP tool types for categorization
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum McpToolType {
+    /// File system operations
+    FileSystem,
+    /// Web browsing and scraping
+    WebBrowser,
+    /// Database queries
+    Database,
+    /// API integrations
+    ApiClient,
+    /// Code execution
+    CodeExecution,
+    /// System commands
+    SystemCommand,
+    /// Custom tools
+    Custom,
+}
+
+impl fmt::Display for McpToolType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            McpToolType::FileSystem => write!(f, "filesystem"),
+            McpToolType::WebBrowser => write!(f, "webbrowser"),
+            McpToolType::Database => write!(f, "database"),
+            McpToolType::ApiClient => write!(f, "apiclient"),
+            McpToolType::CodeExecution => write!(f, "codeexec"),
+            McpToolType::SystemCommand => write!(f, "syscmd"),
+            McpToolType::Custom => write!(f, "custom"),
         }
     }
 }
@@ -352,7 +703,7 @@ impl CimSubject {
 pub struct ClaudeSubjects;
 
 impl ClaudeSubjects {
-    /// Command subjects
+    /// Claude API command subjects (for actual Claude interaction)
     pub fn command(cmd: ClaudeCommand, conversation_id: Option<&str>) -> CimSubject {
         let subject = CimSubject::new(CimDomain::Claude, CimService::Conversation, CimOperation::Cmd)
             .resource_type(cmd);
@@ -363,7 +714,7 @@ impl ClaudeSubjects {
         }
     }
 
-    /// Event subjects  
+    /// Claude API event subjects
     pub fn event(event: ClaudeEvent, conversation_id: Option<&str>) -> CimSubject {
         let subject = CimSubject::new(CimDomain::Claude, CimService::Conversation, CimOperation::Event)
             .resource_type(event);
@@ -374,12 +725,111 @@ impl ClaudeSubjects {
         }
     }
 
-    /// Query subjects
+    /// Claude API query subjects
     pub fn query(query: ClaudeQuery, resource_id: Option<&str>) -> CimSubject {
         let subject = CimSubject::new(CimDomain::Claude, CimService::Conversation, CimOperation::Query)
             .resource_type(query);
         
         match resource_id {
+            Some(id) => subject.resource_id(id),
+            None => subject,
+        }
+    }
+    
+    /// Configuration command subjects (separate from Claude API)
+    pub fn config_command(cmd: ConfigCommand, config_id: Option<&str>) -> CimSubject {
+        let subject = CimSubject::new(CimDomain::Claude, CimService::Config, CimOperation::Cmd)
+            .resource_type(cmd);
+        
+        match config_id {
+            Some(id) => subject.resource_id(id),
+            None => subject,
+        }
+    }
+    
+    /// Configuration event subjects
+    pub fn config_event(event: ConfigEvent, config_id: Option<&str>) -> CimSubject {
+        let subject = CimSubject::new(CimDomain::Claude, CimService::Config, CimOperation::Event)
+            .resource_type(event);
+        
+        match config_id {
+            Some(id) => subject.resource_id(id),
+            None => subject,
+        }
+    }
+    
+    /// Configuration query subjects
+    pub fn config_query(query: ConfigQuery, config_id: Option<&str>) -> CimSubject {
+        let subject = CimSubject::new(CimDomain::Claude, CimService::Config, CimOperation::Query)
+            .resource_type(query);
+        
+        match config_id {
+            Some(id) => subject.resource_id(id),
+            None => subject,
+        }
+    }
+    
+    /// NATS tool command subjects (tools are NATS services)
+    pub fn nats_tool_command(cmd: NatsToolCommand, tool_id: Option<&str>) -> CimSubject {
+        let subject = CimSubject::new(CimDomain::Core, CimService::Event, CimOperation::Cmd) // Using Core domain for infrastructure
+            .resource_type(cmd);
+        
+        match tool_id {
+            Some(id) => subject.resource_id(id),
+            None => subject,
+        }
+    }
+    
+    /// NATS tool event subjects
+    pub fn nats_tool_event(event: NatsToolEvent, tool_id: Option<&str>) -> CimSubject {
+        let subject = CimSubject::new(CimDomain::Core, CimService::Event, CimOperation::Event)
+            .resource_type(event);
+        
+        match tool_id {
+            Some(id) => subject.resource_id(id),
+            None => subject,
+        }
+    }
+    
+    /// NATS tool query subjects
+    pub fn nats_tool_query(query: NatsToolQuery, tool_id: Option<&str>) -> CimSubject {
+        let subject = CimSubject::new(CimDomain::Core, CimService::Event, CimOperation::Query)
+            .resource_type(query);
+        
+        match tool_id {
+            Some(id) => subject.resource_id(id),
+            None => subject,
+        }
+    }
+    
+    /// Conversation control command subjects
+    pub fn control_command(cmd: ConversationControlCommand, conversation_id: Option<&str>) -> CimSubject {
+        let subject = CimSubject::new(CimDomain::User, CimService::Conversation, CimOperation::Cmd) // Using User domain for control
+            .resource_type(cmd);
+        
+        match conversation_id {
+            Some(id) => subject.resource_id(id),
+            None => subject,
+        }
+    }
+    
+    /// Conversation control event subjects
+    pub fn control_event(event: ConversationControlEvent, conversation_id: Option<&str>) -> CimSubject {
+        let subject = CimSubject::new(CimDomain::User, CimService::Conversation, CimOperation::Event)
+            .resource_type(event);
+        
+        match conversation_id {
+            Some(id) => subject.resource_id(id),
+            None => subject,
+        }
+    }
+    
+    /// Conversation control query subjects
+    pub fn control_query(query: ConversationControlQuery, conversation_id: Option<&str>) -> CimSubject {
+        let subject = CimSubject::new(CimDomain::User, CimService::Conversation, CimOperation::Query)
+            .resource_type(query);
+        
+        match conversation_id {
             Some(id) => subject.resource_id(id),
             None => subject,
         }
@@ -597,6 +1047,33 @@ mod tests {
         let wildcard = subject.wildcard();
         assert_eq!(wildcard, "cim.claude.conv.cmd.start.>");
     }
+    
+    #[test]
+    fn test_config_subjects() {
+        let subject = ClaudeSubjects::config_command(ConfigCommand::UpdateSystemPrompt, Some("config-456"));
+        assert_eq!(subject.build(), "cim.claude.config.cmd.update_system_prompt.config-456");
+        
+        let event = ClaudeSubjects::config_event(ConfigEvent::SystemPromptUpdated, Some("config-456"));
+        assert_eq!(event.build(), "cim.claude.config.evt.system_prompt_updated.config-456");
+    }
+    
+    #[test]
+    fn test_nats_tool_subjects() {
+        let subject = ClaudeSubjects::nats_tool_command(NatsToolCommand::RegisterTool, Some("tool-789"));
+        assert_eq!(subject.build(), "cim.core.event.cmd.register_tool.tool-789");
+        
+        let event = ClaudeSubjects::nats_tool_event(NatsToolEvent::ToolRegistered, Some("tool-789"));
+        assert_eq!(event.build(), "cim.core.event.evt.tool_registered.tool-789");
+    }
+    
+    #[test]
+    fn test_control_subjects() {
+        let subject = ClaudeSubjects::control_command(ConversationControlCommand::Pause, Some("conv-123"));
+        assert_eq!(subject.build(), "cim.user.conv.cmd.pause.conv-123");
+        
+        let event = ClaudeSubjects::control_event(ConversationControlEvent::Paused, Some("conv-123"));
+        assert_eq!(event.build(), "cim.user.conv.evt.paused.conv-123");
+    }
 
     #[test]
     fn test_stream_naming() {
@@ -620,5 +1097,22 @@ mod tests {
             Some("attach-456")
         );
         assert_eq!(subject.build(), "cim.claude.attach.evt.attachment_uploaded.attach-456");
+    }
+    
+    #[test]
+    fn test_subject_separation() {
+        // Claude API commands should be separate from config commands
+        let claude_cmd = ClaudeSubjects::command(ClaudeCommand::Send, Some("conv-123"));
+        let config_cmd = ClaudeSubjects::config_command(ConfigCommand::UpdateSystemPrompt, Some("conv-123"));
+        
+        assert_ne!(claude_cmd.build(), config_cmd.build());
+        assert!(claude_cmd.build().contains("conv.cmd"));
+        assert!(config_cmd.build().contains("config.cmd"));
+        
+        // NATS tool commands should be separate from both
+        let nats_tool_cmd = ClaudeSubjects::nats_tool_command(NatsToolCommand::InvokeTool, Some("tool-456"));
+        assert_ne!(claude_cmd.build(), nats_tool_cmd.build());
+        assert_ne!(config_cmd.build(), nats_tool_cmd.build());
+        assert!(nats_tool_cmd.build().contains("core.event.cmd"));
     }
 }

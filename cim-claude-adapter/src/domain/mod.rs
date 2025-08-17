@@ -8,9 +8,13 @@ pub mod conversation_aggregate;
 pub mod errors;
 pub mod events;
 pub mod value_objects;
+pub mod configuration;
+pub mod mcp_tools;
 
 pub use commands::*;
 pub use conversation_aggregate::*;
 pub use errors::*;
 pub use events::*;
 pub use value_objects::*;
+pub use configuration::*;
+pub use mcp_tools::*;
