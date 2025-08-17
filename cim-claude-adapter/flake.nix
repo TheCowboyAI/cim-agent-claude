@@ -61,7 +61,6 @@
           
           # Additional build-time environment variables
           CARGO_BUILD_INCREMENTAL = "false";
-          CARGO_BUILD_JOBS = "$(nproc)";
           
           # Metadata
           meta = with pkgs.lib; {
@@ -73,44 +72,15 @@
           };
         });
 
-        # NixOS container
-        container = pkgs.nixosSystem {
-          system = system;
-          modules = [
-            ({ config, pkgs, ... }: {
-              boot.isContainer = true;
-              networking.useDHCP = false;
-              
-              # Include our NixOS module
-              imports = [ ./nix/module.nix ];
-              
-              # Enable the service with minimal config
-              services.cim-claude-adapter = {
-                enable = true;
-                package = cim-claude-adapter;
-                claude.apiKey = "/run/secrets/claude-api-key"; # Placeholder
-                openFirewall = true;
-              };
-              
-              # Container networking
-              networking.firewall.allowedTCPPorts = [ 8080 9090 ];
-              
-              # Minimal system configuration
-              systemd.services.systemd-logind.enable = false;
-              systemd.services.getty@.enable = false;
-              systemd.services."serial-getty@".enable = false;
-              
-              system.stateVersion = "24.05";
-            })
-          ];
-        }.config.system.build.toplevel;
+        # Skip NixOS systems for now due to complexity
+        # TODO: Re-enable when module integration is stable
 
       in {
         # Packages
         packages = {
           default = cim-claude-adapter;
           cim-claude-adapter = cim-claude-adapter;
-          container = container;
+          # TODO: Add container and test-system when module integration is stable
         };
 
         # Development shell
@@ -215,12 +185,16 @@
             partitions = 1;
             partitionType = "count";
           });
+          
+          # TODO: Add integration test when module integration is stable
         };
       }
     ) // {
-      # NixOS module
+      # NixOS modules
       nixosModules.default = import ./nix/module.nix;
       nixosModules.cim-claude-adapter = import ./nix/module.nix;
+      nixosModules.nats-infrastructure = import ./nix/nats-infrastructure.nix;
+      nixosModules.test-integration = import ./nix/test-integration.nix;
       
       # Overlay for adding this package to nixpkgs
       overlays.default = final: prev: {

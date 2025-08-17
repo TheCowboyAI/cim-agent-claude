@@ -119,7 +119,7 @@ mod tests {
         };
 
         let correlation_id = CorrelationId::new();
-        let envelope = command.with_metadata(correlation_id);
+        let envelope = command.with_metadata(correlation_id.clone());
 
         assert_eq!(envelope.correlation_id, correlation_id);
         assert!(!envelope.command_id.is_nil());
@@ -137,7 +137,7 @@ mod tests {
         assert!(valid_command.validate().is_ok());
 
         // Invalid command with empty prompt
-        let invalid_command = Command::SendPrompt {
+        let _invalid_command = Command::SendPrompt {
             conversation_id: ConversationId::new(),
             prompt: Prompt::new("".to_string()).unwrap_or_else(|_| {
                 // This shouldn't happen due to Prompt validation, but for test purposes

@@ -150,7 +150,7 @@ mod tests {
         };
 
         let correlation_id = CorrelationId::new();
-        let envelope = event.with_metadata(correlation_id, None);
+        let envelope = event.with_metadata(correlation_id.clone(), None);
 
         assert_eq!(envelope.correlation_id, correlation_id);
         assert!(!envelope.event_id.is_nil());

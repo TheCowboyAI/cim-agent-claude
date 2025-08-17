@@ -3,6 +3,11 @@
 
 { config, lib, pkgs, ... }:
 
+# Import the NATS infrastructure module
+let
+  natsInfrastructure = import ./nats-infrastructure.nix { inherit config lib pkgs; };
+in
+
 with lib;
 
 let
@@ -103,6 +108,12 @@ in {
 
     # NATS configuration
     nats = {
+      enable = mkOption {
+        type = types.bool;
+        default = true;
+        description = "Enable integrated NATS infrastructure with JetStream.";
+      };
+      
       url = mkOption {
         type = types.str;
         default = "nats://localhost:4222";
@@ -126,6 +137,35 @@ in {
         default = null;
         description = "Path to NATS credentials file.";
         example = "/run/secrets/nats-credentials";
+      };
+      
+      # Expose NATS infrastructure options
+      infrastructure = {
+        enable = mkOption {
+          type = types.bool;
+          default = cfg.nats.enable;
+          description = "Enable NATS infrastructure with dedicated streams and stores.";
+        };
+        
+        environment = mkOption {
+          type = types.enum [ "development" "staging" "production" ];
+          default = "production";
+          description = "Environment for NATS resource scaling.";
+        };
+        
+        replication = {
+          replicas = mkOption {
+            type = types.ints.between 1 5;
+            default = 3;
+            description = "Number of replicas for JetStream resources.";
+          };
+        };
+        
+        openFirewall = mkOption {
+          type = types.bool;
+          default = false;
+          description = "Open firewall ports for NATS server.";
+        };
       };
     };
 
@@ -236,8 +276,9 @@ in {
     systemd.services.cim-claude-adapter = {
       description = "CIM Claude Adapter - Event-driven Claude AI integration";
       documentation = [ "https://github.com/TheCowboyAI/cim-agent-claude" ];
-      after = [ "network-online.target" ];
-      wants = [ "network-online.target" ];
+      after = [ "network-online.target" ] ++ optional cfg.nats.infrastructure.enable "nats-server.service";
+      wants = [ "network-online.target" ] ++ optional cfg.nats.infrastructure.enable "nats-server.service";
+      requires = optional cfg.nats.infrastructure.enable "nats-jetstream-setup.service";
       wantedBy = [ "multi-user.target" ];
 
       environment = cfg.environment // {
@@ -298,6 +339,34 @@ in {
 
     # Ensure package is available
     environment.systemPackages = [ cfg.package ];
+    
+    # Enable NATS infrastructure if requested
+    services.cim-claude-nats = mkIf cfg.nats.infrastructure.enable {
+      enable = true;
+      inherit (cfg.nats.infrastructure) environment openFirewall;
+      replication.replicas = cfg.nats.infrastructure.replication.replicas;
+      
+      # Use the same port as the adapter expects
+      port = 
+        if hasPrefix "nats://" cfg.nats.url then
+          toInt (last (splitString ":" cfg.nats.url))
+        else 4222;
+      
+      # Configure JetStream with appropriate resources based on environment
+      jetstream = {
+        enable = true;
+        domain = "cim-claude";
+        storeDir = "/var/lib/nats/jetstream";
+        maxMemoryStore = 
+          if cfg.nats.infrastructure.environment == "development" then "256MB"
+          else if cfg.nats.infrastructure.environment == "staging" then "512MB"
+          else "1GB";
+        maxFileStore = 
+          if cfg.nats.infrastructure.environment == "development" then "10GB"
+          else if cfg.nats.infrastructure.environment == "staging" then "50GB"
+          else "100GB";
+      };
+    };
 
     # Assertions
     assertions = [
@@ -316,6 +385,10 @@ in {
       {
         assertion = cfg.monitoring.healthPort != cfg.monitoring.metricsPort;
         message = "Health and metrics ports must be different";
+      }
+      {
+        assertion = !cfg.nats.infrastructure.enable || cfg.nats.enable;
+        message = "NATS infrastructure requires NATS to be enabled";
       }
     ];
 
