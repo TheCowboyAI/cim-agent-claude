@@ -1,0 +1,366 @@
+# NATS Subject Hierarchy Design for Claude API Adapter
+# Complete subject design with wildcards, routing patterns, and access control
+
+# Subject Algebra Design
+subject_algebra:
+  # Base Pattern: {service}.{category}.{session_id}.{operation}
+  # Domain-aware Pattern: {domain}.{service}.{category}.{session_id}.{operation}
+  
+  base_pattern: "claude.{category}.{session_id}.{operation}"
+  domain_pattern: "{domain}.claude.{category}.{session_id}.{operation}"
+  
+# Core Subject Categories
+categories:
+  cmd:
+    description: "Commands - Imperative requests for action"
+    retention: "workqueue"
+    durability: "durable"
+    
+  event:  
+    description: "Events - Past-tense business occurrences"
+    retention: "limits"
+    durability: "durable"
+    
+  resp:
+    description: "Responses - API responses and results"
+    retention: "interest" 
+    durability: "ephemeral_ok"
+    
+  monitor:
+    description: "Monitoring - Health, metrics, and observability"
+    retention: "limits"
+    durability: "durable"
+
+# Subject Definitions
+subjects:
+  # Command Subjects (Inbound)
+  commands:
+    # Conversation Management
+    start_conversation:
+      pattern: "claude.cmd.{session_id}.start"
+      description: "Start new conversation with initial prompt"
+      payload_schema: "StartConversationCommand"
+      required_headers: ["correlation_id", "user_id", "timestamp"]
+      max_payload_size: "50KB"
+      rate_limit: "10/minute/user"
+      
+    send_prompt:
+      pattern: "claude.cmd.{session_id}.prompt" 
+      description: "Send prompt to existing conversation"
+      payload_schema: "SendPromptCommand"
+      required_headers: ["correlation_id", "causation_id", "conversation_id"]
+      max_payload_size: "500KB"
+      rate_limit: "60/minute/conversation"
+      
+    end_conversation:
+      pattern: "claude.cmd.{session_id}.end"
+      description: "End conversation with reason"
+      payload_schema: "EndConversationCommand" 
+      required_headers: ["correlation_id", "conversation_id", "reason"]
+      max_payload_size: "10KB"
+      rate_limit: "unlimited"
+      
+    cancel_request:
+      pattern: "claude.cmd.{session_id}.cancel"
+      description: "Cancel pending request"
+      payload_schema: "CancelRequestCommand"
+      required_headers: ["correlation_id", "request_id"]
+      max_payload_size: "5KB"
+      rate_limit: "unlimited"
+      
+    # Administrative Commands
+    health_check:
+      pattern: "claude.cmd.system.health"
+      description: "Request health check from service"
+      payload_schema: "HealthCheckCommand"
+      required_headers: ["correlation_id"]
+      max_payload_size: "1KB"
+      rate_limit: "10/second"
+      
+    metrics_request:
+      pattern: "claude.cmd.system.metrics"
+      description: "Request metrics dump"
+      payload_schema: "MetricsRequestCommand"
+      required_headers: ["correlation_id", "metric_type"]
+      max_payload_size: "5KB"
+      rate_limit: "5/minute"
+
+  # Event Subjects (Outbound)
+  events:
+    # Conversation Lifecycle Events
+    conversation_started:
+      pattern: "claude.event.{session_id}.started"
+      description: "Conversation was successfully started"
+      payload_schema: "ConversationStartedEvent"
+      required_headers: ["correlation_id", "event_id", "conversation_id", "timestamp"]
+      
+    prompt_sent:
+      pattern: "claude.event.{session_id}.prompt_sent" 
+      description: "Prompt was sent to Claude API"
+      payload_schema: "PromptSentEvent"
+      required_headers: ["correlation_id", "event_id", "causation_id", "conversation_id"]
+      
+    conversation_ended:
+      pattern: "claude.event.{session_id}.ended"
+      description: "Conversation was ended"
+      payload_schema: "ConversationEndedEvent" 
+      required_headers: ["correlation_id", "event_id", "conversation_id", "end_reason"]
+      
+    # Error Events
+    command_failed:
+      pattern: "claude.event.{session_id}.command_failed"
+      description: "Command processing failed"
+      payload_schema: "CommandFailedEvent"
+      required_headers: ["correlation_id", "event_id", "error_code", "failed_command"]
+      
+    api_error:
+      pattern: "claude.event.{session_id}.api_error"
+      description: "Claude API returned error"
+      payload_schema: "ApiErrorEvent"
+      required_headers: ["correlation_id", "event_id", "api_error_code", "retry_count"]
+      
+    # State Change Events  
+    conversation_updated:
+      pattern: "claude.event.{session_id}.conversation_updated"
+      description: "Conversation state was updated"
+      payload_schema: "ConversationUpdatedEvent"
+      required_headers: ["correlation_id", "event_id", "conversation_id", "state_from", "state_to"]
+
+  # Response Subjects (Claude API Results)
+  responses:
+    # Content Responses
+    content:
+      pattern: "claude.resp.{session_id}.content"
+      description: "Claude API response content"
+      payload_schema: "ClaudeResponseContent"
+      required_headers: ["correlation_id", "causation_id", "response_id", "conversation_id"]
+      max_payload_size: "10MB"
+      
+    streaming:
+      pattern: "claude.resp.{session_id}.streaming"
+      description: "Streaming response chunk from Claude"
+      payload_schema: "StreamingResponseChunk"
+      required_headers: ["correlation_id", "causation_id", "chunk_id", "chunk_sequence"]
+      max_payload_size: "1MB"
+      
+    complete:
+      pattern: "claude.resp.{session_id}.complete"
+      description: "Response streaming completed"
+      payload_schema: "ResponseCompleteEvent"
+      required_headers: ["correlation_id", "causation_id", "total_chunks", "final_response_id"]
+      
+    # Error Responses
+    error:
+      pattern: "claude.resp.{session_id}.error"
+      description: "Error response from Claude API"
+      payload_schema: "ErrorResponse"
+      required_headers: ["correlation_id", "causation_id", "error_type", "retry_after"]
+
+  # Monitoring Subjects
+  monitoring:
+    # Health Monitoring
+    health_status:
+      pattern: "claude.monitor.health.{component}"
+      description: "Component health status"
+      payload_schema: "HealthStatus"
+      required_headers: ["component", "status", "timestamp"]
+      
+    health_aggregate:
+      pattern: "claude.monitor.health.aggregate"
+      description: "Aggregate system health"
+      payload_schema: "SystemHealthStatus"
+      required_headers: ["overall_status", "component_count", "timestamp"]
+      
+    # Metrics
+    conversation_metrics:
+      pattern: "claude.monitor.metrics.conversations"
+      description: "Conversation-related metrics"
+      payload_schema: "ConversationMetrics"
+      required_headers: ["metric_type", "timestamp", "period"]
+      
+    api_metrics:
+      pattern: "claude.monitor.metrics.api"
+      description: "Claude API interaction metrics"
+      payload_schema: "ApiMetrics"
+      required_headers: ["metric_type", "api_endpoint", "timestamp"]
+      
+    performance_metrics:
+      pattern: "claude.monitor.metrics.performance"
+      description: "System performance metrics"
+      payload_schema: "PerformanceMetrics"
+      required_headers: ["metric_type", "component", "timestamp"]
+      
+    # Distributed Tracing
+    trace_span:
+      pattern: "claude.monitor.trace.{trace_id}.{span_id}"
+      description: "Distributed tracing span"
+      payload_schema: "TraceSpan"
+      required_headers: ["trace_id", "span_id", "parent_span_id", "operation_name"]
+
+# Wildcard Patterns for Subscriptions
+wildcard_patterns:
+  # Command subscriptions
+  all_commands:
+    pattern: "claude.cmd.>"
+    description: "Subscribe to all commands"
+    use_case: "Primary command processor"
+    
+  session_commands:
+    pattern: "claude.cmd.{session_id}.>"
+    description: "Subscribe to all commands for specific session"
+    use_case: "Session-specific processing"
+    
+  system_commands:
+    pattern: "claude.cmd.system.>"
+    description: "Subscribe to system-level commands"
+    use_case: "Administrative operations"
+    
+  # Event subscriptions
+  all_events:
+    pattern: "claude.event.>"
+    description: "Subscribe to all events"
+    use_case: "Event sourcing, audit logging"
+    
+  conversation_events:
+    pattern: "claude.event.*.{conversation_id}"
+    description: "Subscribe to events for specific conversation"
+    use_case: "Conversation state tracking"
+    
+  error_events:
+    pattern: "claude.event.*.{error_type}" 
+    description: "Subscribe to specific error types"
+    use_case: "Error handling and alerting"
+    
+  # Response subscriptions
+  session_responses:
+    pattern: "claude.resp.{session_id}.>"
+    description: "Subscribe to all responses for session"
+    use_case: "Session response aggregation"
+    
+  content_responses:
+    pattern: "claude.resp.*.content"
+    description: "Subscribe to content responses only"
+    use_case: "Content processing pipelines"
+    
+  # Monitoring subscriptions  
+  health_monitoring:
+    pattern: "claude.monitor.health.>"
+    description: "Subscribe to all health data"
+    use_case: "Health monitoring dashboards"
+    
+  metrics_monitoring:
+    pattern: "claude.monitor.metrics.>"
+    description: "Subscribe to all metrics"
+    use_case: "Metrics collection and aggregation"
+    
+  trace_monitoring:
+    pattern: "claude.monitor.trace.>"
+    description: "Subscribe to all tracing data" 
+    use_case: "Distributed tracing systems"
+
+# Domain-Aware Subject Extensions
+domain_patterns:
+  # Multi-tenant patterns
+  tenant_commands:
+    pattern: "{tenant}.claude.cmd.{session_id}.{operation}"
+    description: "Tenant-isolated commands"
+    isolation: "account_level"
+    
+  tenant_events:
+    pattern: "{tenant}.claude.event.{session_id}.{event_type}"
+    description: "Tenant-isolated events"
+    isolation: "account_level"
+    
+  # Environment-specific patterns  
+  env_commands:
+    pattern: "claude.{env}.cmd.{session_id}.{operation}"
+    description: "Environment-specific commands (dev/staging/prod)"
+    isolation: "subject_level"
+    
+  # Region-specific patterns
+  region_commands:
+    pattern: "claude.cmd.{region}.{session_id}.{operation}"
+    description: "Region-specific commands for geo-distribution"
+    isolation: "stream_level"
+
+# Subject Access Control Patterns
+access_control:
+  # Publisher permissions
+  publishers:
+    api_gateway:
+      subjects: ["claude.cmd.>"]
+      description: "API Gateway can publish commands"
+      
+    claude_service:
+      subjects: ["claude.event.>", "claude.resp.>", "claude.monitor.>"]
+      description: "Claude service can publish events, responses, and monitoring"
+      
+    monitoring_service:
+      subjects: ["claude.monitor.>"]
+      description: "Monitoring service can publish health and metrics"
+      
+  # Subscriber permissions
+  subscribers:
+    command_processor:
+      subjects: ["claude.cmd.>"]
+      description: "Command processor subscribes to all commands"
+      
+    event_store:
+      subjects: ["claude.event.>"]
+      description: "Event store subscribes to all events"
+      
+    response_aggregator:
+      subjects: ["claude.resp.>"]
+      description: "Response aggregator processes all responses"
+      
+    monitoring_dashboard:
+      subjects: ["claude.monitor.>"]
+      description: "Dashboard subscribes to monitoring data"
+      
+    api_gateway_responses:
+      subjects: ["claude.resp.*.content", "claude.resp.*.error"]
+      description: "API Gateway subscribes to responses for client delivery"
+
+# Subject Routing Rules
+routing:
+  # Command routing based on load balancing
+  command_load_balancing:
+    subjects: ["claude.cmd.*.start", "claude.cmd.*.prompt"]
+    strategy: "round_robin"
+    workers: 3
+    
+  # Event routing to multiple processors
+  event_fanout:
+    subjects: ["claude.event.>"]
+    strategy: "fanout"
+    destinations:
+      - "event_store"
+      - "analytics_processor"  
+      - "audit_logger"
+      
+  # Response routing back to requesters
+  response_correlation:
+    subjects: ["claude.resp.>"]
+    strategy: "correlation_id_routing"
+    correlation_header: "correlation_id"
+
+# Validation Rules
+validation:
+  # Subject format validation
+  subject_format:
+    pattern: "^claude\\.(cmd|event|resp|monitor)\\.[a-zA-Z0-9_-]+\\.[a-zA-Z0-9_-]+$"
+    description: "Ensure subjects follow proper format"
+    
+  # Required headers validation
+  required_headers:
+    all_messages: ["correlation_id", "timestamp"]
+    commands: ["user_id"]
+    events: ["event_id"]
+    responses: ["causation_id"]
+    
+  # Payload size limits
+  payload_limits:
+    commands: 524288      # 512KB
+    events: 1048576       # 1MB  
+    responses: 10485760   # 10MB
+    monitoring: 262144    # 256KB

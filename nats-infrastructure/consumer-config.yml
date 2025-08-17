@@ -1,0 +1,437 @@
+# NATS Consumer Configuration for Claude API Adapter
+# Durable consumers with proper error handling, retry logic, and performance optimization
+
+# Consumer Definitions
+consumers:
+  # Primary Command Processing
+  claude-command-processor:
+    stream: "CLAUDE_COMMANDS"
+    durable_name: "claude-cmd-processor-v1"
+    description: "Primary processor for all Claude commands with retry logic and error handling"
+    
+    # Delivery Configuration
+    deliver_policy: "new"                    # Process new messages only
+    ack_policy: "explicit"                   # Require explicit acknowledgment
+    ack_wait: "30s"                         # 30 second ack timeout
+    max_deliver: 3                          # Maximum 3 delivery attempts
+    backoff:
+      - "1s"                                # First retry after 1 second
+      - "5s"                                # Second retry after 5 seconds  
+      - "15s"                               # Third retry after 15 seconds
+    
+    # Message Processing
+    filter_subject: "claude.cmd.>"
+    replay_policy: "instant"                # Deliver messages immediately
+    rate_limit: 1000                        # Process up to 1000 msgs/sec
+    max_waiting: 100                        # Queue up to 100 pull requests
+    max_ack_pending: 50                     # Max 50 unacked messages
+    
+    # Sampling and Monitoring
+    sample_freq: "10%"                      # Sample 10% for monitoring
+    inactive_threshold: "86400s"            # 24 hours inactive threshold
+    
+    # Headers and Metadata
+    headers_only: false                     # Include full message payload
+    flow_control: true                      # Enable flow control
+    idle_heartbeat: "30s"                  # Heartbeat every 30 seconds
+    
+    # Error Handling
+    max_ack_pending_bytes: 52428800        # 50MB max pending bytes
+    deliver_subject: "claude.internal.cmd.deliver"
+    nak_policy: "delay"                    # Delay redelivery on NAK
+    
+  # Response Distribution  
+  claude-response-distributor:
+    stream: "CLAUDE_RESPONSES"
+    durable_name: "claude-resp-dist-v1" 
+    description: "Distributes Claude API responses to waiting clients with correlation tracking"
+    
+    # Delivery Configuration
+    deliver_policy: "all"                   # Process all available messages
+    ack_policy: "explicit"
+    ack_wait: "15s"                        # Shorter timeout for responses
+    max_deliver: 2                         # Only retry once for responses
+    backoff:
+      - "500ms"                            # Quick retry for responses
+      - "2s"
+    
+    # Message Processing
+    filter_subject: "claude.resp.>"
+    replay_policy: "instant"
+    rate_limit: 2000                       # Higher rate for responses
+    max_waiting: 50
+    max_ack_pending: 25
+    
+    # Sampling and Monitoring  
+    sample_freq: "5%"                      # Lower sampling for responses
+    inactive_threshold: "3600s"            # 1 hour inactive threshold
+    
+    # Response-specific Configuration
+    headers_only: false
+    flow_control: true
+    idle_heartbeat: "15s"                  # More frequent heartbeat
+    deliver_subject: "claude.internal.resp.deliver"
+    
+  # Event Processing for Audit and Analytics
+  claude-event-processor:
+    stream: "CLAUDE_EVENTS"
+    durable_name: "claude-event-proc-v1"
+    description: "Processes all domain events for audit logging and analytics with guaranteed delivery"
+    
+    # Delivery Configuration
+    deliver_policy: "all"                   # Process all events from beginning
+    ack_policy: "explicit"
+    ack_wait: "60s"                        # Longer timeout for event processing
+    max_deliver: 5                         # More retries for important events
+    backoff:
+      - "2s"
+      - "10s"  
+      - "30s"
+      - "60s"
+      - "120s"
+    
+    # Message Processing
+    filter_subject: "claude.event.>"
+    replay_policy: "original"              # Maintain original timing for analytics
+    rate_limit: 500                        # Moderate rate for event processing
+    max_waiting: 200
+    max_ack_pending: 100
+    
+    # Event-specific Configuration
+    sample_freq: "100%"                    # Sample all events for audit
+    inactive_threshold: "86400s"           # 24 hours
+    headers_only: false
+    flow_control: true
+    idle_heartbeat: "60s"
+    deliver_subject: "claude.internal.event.deliver"
+    
+  # Session-specific Command Processing
+  claude-session-processor:
+    stream: "CLAUDE_COMMANDS"
+    durable_name: "claude-session-proc-v1"
+    description: "Session-aware command processor for maintaining conversation context"
+    
+    # Delivery Configuration  
+    deliver_policy: "new"
+    ack_policy: "explicit"
+    ack_wait: "45s"
+    max_deliver: 3
+    backoff:
+      - "2s"
+      - "8s"
+      - "20s"
+    
+    # Session Processing
+    filter_subject: "claude.cmd.*.start"   # Only process start commands
+    replay_policy: "instant"
+    rate_limit: 100                        # Lower rate for session management
+    max_waiting: 20
+    max_ack_pending: 10
+    
+    # Context Preservation
+    sample_freq: "25%"
+    inactive_threshold: "43200s"           # 12 hours
+    headers_only: false
+    flow_control: true
+    deliver_subject: "claude.internal.session.deliver"
+    
+  # Monitoring Data Processor
+  claude-monitoring-consumer:
+    stream: "CLAUDE_MONITORING"
+    durable_name: "claude-monitor-v1"
+    description: "Processes monitoring data for observability and alerting"
+    
+    # Delivery Configuration
+    deliver_policy: "new"
+    ack_policy: "explicit" 
+    ack_wait: "10s"                        # Short timeout for monitoring
+    max_deliver: 1                         # Don't retry monitoring data
+    
+    # Monitoring Processing
+    filter_subject: "claude.monitor.>"
+    replay_policy: "instant"
+    rate_limit: 5000                       # High rate for monitoring data
+    max_waiting: 20
+    max_ack_pending: 10
+    
+    # Monitoring-specific Configuration
+    sample_freq: "1%"                      # Minimal sampling for monitoring
+    inactive_threshold: "3600s"            # 1 hour
+    headers_only: false
+    flow_control: false                    # Disable flow control for monitoring
+    idle_heartbeat: "10s"
+    deliver_subject: "claude.internal.monitor.deliver"
+    
+  # Error Handler Consumer
+  claude-error-handler:
+    stream: "CLAUDE_EVENTS"
+    durable_name: "claude-error-handler-v1"
+    description: "Specialized consumer for processing error events and triggering alerts"
+    
+    # Delivery Configuration
+    deliver_policy: "new"
+    ack_policy: "explicit"
+    ack_wait: "20s"
+    max_deliver: 2
+    backoff:
+      - "1s"
+      - "5s"
+    
+    # Error Processing
+    filter_subject: "claude.event.*.error"  # Only error events
+    replay_policy: "instant"
+    rate_limit: 200
+    max_waiting: 10
+    max_ack_pending: 5
+    
+    # Error-specific Configuration
+    sample_freq: "100%"                    # Sample all errors
+    inactive_threshold: "3600s"
+    headers_only: false
+    flow_control: true
+    deliver_subject: "claude.internal.error.deliver"
+    
+  # Analytics Processor
+  claude-analytics-processor:
+    stream: "CLAUDE_EVENTS" 
+    durable_name: "claude-analytics-v1"
+    description: "Processes conversation events for business analytics and reporting"
+    
+    # Delivery Configuration
+    deliver_policy: "by_start_time"        # Process from specific time
+    start_time: "2024-01-01T00:00:00Z"
+    ack_policy: "explicit"
+    ack_wait: "120s"                       # Longer timeout for analytics
+    max_deliver: 3
+    
+    # Analytics Processing
+    filter_subject: "claude.event.>.started, claude.event.>.ended"
+    replay_policy: "original"              # Maintain timing for analytics
+    rate_limit: 100                        # Lower rate for analytics
+    max_waiting: 50
+    max_ack_pending: 25
+    
+    # Analytics-specific Configuration
+    sample_freq: "100%"
+    inactive_threshold: "172800s"          # 48 hours (analytics can be delayed)
+    headers_only: false
+    flow_control: true
+    deliver_subject: "claude.internal.analytics.deliver"
+
+# Consumer Groups for Load Balancing
+consumer_groups:
+  # Command Processing Group
+  command-processing-group:
+    description: "Load-balanced command processing across multiple instances"
+    consumers:
+      - name: "claude-cmd-worker-1"
+        stream: "CLAUDE_COMMANDS"
+        durable_name: "claude-cmd-worker-1-v1"
+        queue_group: "command-processors"
+        filter_subject: "claude.cmd.>"
+        max_deliver: 3
+        ack_wait: "30s"
+        
+      - name: "claude-cmd-worker-2" 
+        stream: "CLAUDE_COMMANDS"
+        durable_name: "claude-cmd-worker-2-v1"
+        queue_group: "command-processors"
+        filter_subject: "claude.cmd.>"
+        max_deliver: 3
+        ack_wait: "30s"
+        
+      - name: "claude-cmd-worker-3"
+        stream: "CLAUDE_COMMANDS" 
+        durable_name: "claude-cmd-worker-3-v1"
+        queue_group: "command-processors"
+        filter_subject: "claude.cmd.>"
+        max_deliver: 3
+        ack_wait: "30s"
+    
+    # Load Balancing Configuration
+    load_balancing:
+      strategy: "round_robin"
+      health_check_interval: "30s"
+      failure_threshold: 3
+      recovery_time: "60s"
+      
+  # Response Processing Group
+  response-processing-group:
+    description: "Distributed response processing for high throughput"
+    consumers:
+      - name: "claude-resp-worker-1"
+        stream: "CLAUDE_RESPONSES"
+        durable_name: "claude-resp-worker-1-v1"
+        queue_group: "response-processors"
+        filter_subject: "claude.resp.>"
+        max_deliver: 2
+        ack_wait: "15s"
+        
+      - name: "claude-resp-worker-2"
+        stream: "CLAUDE_RESPONSES"
+        durable_name: "claude-resp-worker-2-v1" 
+        queue_group: "response-processors"
+        filter_subject: "claude.resp.>"
+        max_deliver: 2
+        ack_wait: "15s"
+    
+    # Response-specific Load Balancing
+    load_balancing:
+      strategy: "least_connections"
+      correlation_aware: true
+      sticky_sessions: true
+
+# Consumer Health Monitoring
+health_monitoring:
+  # Health Check Configuration
+  health_checks:
+    enabled: true
+    interval: "30s"
+    timeout: "10s"
+    failure_threshold: 3
+    success_threshold: 2
+    
+  # Metrics Collection
+  metrics:
+    - name: "consumer_lag"
+      description: "Number of pending messages per consumer"
+      type: "gauge"
+      labels: ["consumer_name", "stream"]
+      
+    - name: "consumer_throughput"
+      description: "Messages processed per second"
+      type: "rate"
+      labels: ["consumer_name"]
+      
+    - name: "consumer_errors"
+      description: "Consumer processing errors"
+      type: "counter"
+      labels: ["consumer_name", "error_type"]
+      
+    - name: "ack_time"
+      description: "Time from delivery to acknowledgment"
+      type: "histogram"
+      labels: ["consumer_name"]
+      
+    - name: "redelivery_count"
+      description: "Number of message redeliveries"
+      type: "counter"
+      labels: ["consumer_name", "delivery_count"]
+      
+  # Alerting Rules
+  alerts:
+    - name: "consumer_lag_high"
+      condition: "consumer_lag > 1000"
+      severity: "warning"
+      duration: "5m"
+      
+    - name: "consumer_errors_high"
+      condition: "rate(consumer_errors[5m]) > 10"
+      severity: "critical"
+      duration: "2m"
+      
+    - name: "consumer_down"
+      condition: "up{consumer_name=~'claude-.*'} == 0"
+      severity: "critical"
+      duration: "1m"
+
+# Consumer Scaling Configuration
+scaling:
+  # Auto-scaling Rules
+  auto_scaling:
+    enabled: true
+    
+    # Command Processor Scaling
+    command_processors:
+      min_replicas: 2
+      max_replicas: 10
+      target_lag: 100                      # Scale when lag exceeds 100 messages
+      scale_up_threshold: 80
+      scale_down_threshold: 20
+      cooldown_period: "300s"
+      
+    # Response Processor Scaling  
+    response_processors:
+      min_replicas: 1
+      max_replicas: 5
+      target_throughput: 500               # Scale based on throughput
+      scale_up_threshold: 400
+      scale_down_threshold: 100
+      cooldown_period: "180s"
+      
+    # Event Processor Scaling
+    event_processors:
+      min_replicas: 1
+      max_replicas: 3
+      target_lag: 500
+      scale_up_threshold: 400
+      scale_down_threshold: 50
+      cooldown_period: "600s"              # Longer cooldown for event processing
+
+# Consumer Security Configuration
+security:
+  # Authentication
+  authentication:
+    method: "nkeys"                        # Use NATS nkeys for authentication
+    credentials_file: "/etc/nats/consumers.creds"
+    rotation_interval: "24h"
+    
+  # Authorization
+  authorization:
+    # Command consumer permissions
+    command_consumers:
+      subjects:
+        subscribe: ["claude.cmd.>", "claude.internal.cmd.deliver"]
+        publish: ["claude.event.>", "_INBOX.>"]
+      limits:
+        max_payload: 1048576               # 1MB
+        max_connections: 5
+        
+    # Event consumer permissions  
+    event_consumers:
+      subjects:
+        subscribe: ["claude.event.>", "claude.internal.event.deliver"]
+        publish: ["_INBOX.>"]
+      limits:
+        max_payload: 1048576
+        max_connections: 3
+        
+    # Response consumer permissions
+    response_consumers:
+      subjects:
+        subscribe: ["claude.resp.>", "claude.internal.resp.deliver"]
+        publish: ["claude.event.>", "_INBOX.>"]
+      limits:
+        max_payload: 10485760              # 10MB for large responses
+        max_connections: 5
+
+# Consumer Disaster Recovery
+disaster_recovery:
+  # Backup Configuration
+  backup:
+    enabled: true
+    interval: "1h"
+    retention: "7d"
+    storage_location: "/backup/nats/consumers"
+    
+  # Failover Configuration
+  failover:
+    enabled: true
+    detection_timeout: "30s"
+    failover_timeout: "60s"
+    auto_failback: true
+    failback_delay: "300s"
+    
+  # Recovery Procedures
+  recovery:
+    # Consumer State Recovery
+    state_recovery:
+      checkpoint_interval: "5m"
+      recovery_timeout: "300s"
+      verify_integrity: true
+      
+    # Message Recovery
+    message_recovery:
+      replay_from_checkpoint: true
+      skip_duplicate_detection: false
+      recovery_batch_size: 1000

@@ -1,0 +1,444 @@
+# Docker Compose for NATS Infrastructure - Claude API Adapter
+# Production-ready NATS cluster with monitoring and security
+
+version: '3.8'
+
+services:
+  # NATS Server with JetStream
+  nats:
+    image: nats:2.10-alpine
+    container_name: claude-nats-server
+    hostname: nats
+    restart: unless-stopped
+    
+    # NATS Server Configuration
+    command:
+      - "--config"
+      - "/etc/nats/nats-server.conf"
+      - "--jetstream"
+      - "--store_dir=/data/jetstream"
+    
+    # Port Mappings
+    ports:
+      - "4222:4222"    # NATS client port
+      - "8222:8222"    # HTTP monitoring port
+      - "6222:6222"    # Cluster port
+    
+    # Volume Mounts
+    volumes:
+      - ./configs/nats-server.conf:/etc/nats/nats-server.conf:ro
+      - ./certs:/etc/nats/certs:ro
+      - ./keys:/etc/nats/keys:ro
+      - nats_data:/data
+      - nats_logs:/var/log/nats
+    
+    # Environment Variables
+    environment:
+      - NATS_SERVER_NAME=claude-nats-server
+      - NATS_LOG_FILE=/var/log/nats/nats-server.log
+    
+    # Resource Limits
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 2G
+          cpus: '1.0'
+    
+    # Health Check
+    healthcheck:
+      test: ["CMD", "nats", "server", "check", "connection"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+    
+    # Networks
+    networks:
+      - nats-network
+      - monitoring-network
+
+  # NATS Configuration Service (NSC)
+  nats-config:
+    image: natsio/nats-server:2.10-alpine
+    container_name: nats-config-service
+    restart: "no"  # Run once to generate configs
+    
+    # Configuration Generation
+    command:
+      - "sh"
+      - "-c"
+      - |
+        echo "Generating NATS security configuration..."
+        # NSC configuration commands would go here
+        # This is a placeholder for the actual NSC setup
+        sleep 10
+        echo "Configuration generation completed"
+    
+    volumes:
+      - ./keys:/nsc_keys
+      - ./creds:/nsc_creds
+    
+    depends_on:
+      - nats
+
+  # NATS Exporter for Prometheus
+  nats-exporter:
+    image: natsio/prometheus-nats-exporter:0.15.0
+    container_name: nats-exporter
+    hostname: nats-exporter
+    restart: unless-stopped
+    
+    # Exporter Configuration
+    command:
+      - "-varz"
+      - "-connz"
+      - "-routez"  
+      - "-subz"
+      - "-jsz=all"
+      - "http://nats:8222"
+    
+    ports:
+      - "7777:7777"  # Prometheus metrics port
+    
+    # Resource Limits
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.2'
+    
+    # Health Check
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:7777/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    
+    depends_on:
+      - nats
+    
+    networks:
+      - nats-network
+      - monitoring-network
+
+  # Prometheus for Metrics Collection
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: prometheus
+    hostname: prometheus
+    restart: unless-stopped
+    
+    # Prometheus Configuration
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    
+    ports:
+      - "9090:9090"  # Prometheus web interface
+    
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    
+    # Resource Limits
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+    
+    # Health Check
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+    depends_on:
+      - nats-exporter
+    
+    networks:
+      - monitoring-network
+
+  # Grafana for Visualization
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: grafana
+    hostname: grafana
+    restart: unless-stopped
+    
+    ports:
+      - "3000:3000"  # Grafana web interface
+    
+    # Environment Variables
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    
+    volumes:
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    
+    # Resource Limits
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+    
+    # Health Check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+    depends_on:
+      - prometheus
+    
+    networks:
+      - monitoring-network
+
+  # AlertManager for Alerting
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: alertmanager
+    hostname: alertmanager
+    restart: unless-stopped
+    
+    # AlertManager Configuration
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+    
+    ports:
+      - "9093:9093"  # AlertManager web interface
+    
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    
+    # Resource Limits
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.3'
+    
+    # Health Check
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    
+    networks:
+      - monitoring-network
+
+  # Jaeger for Distributed Tracing
+  jaeger:
+    image: jaegertracing/all-in-one:1.49
+    container_name: jaeger
+    hostname: jaeger
+    restart: unless-stopped
+    
+    # Environment Variables
+    environment:
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+      - SPAN_STORAGE_TYPE=memory
+    
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14268:14268"  # Jaeger collector HTTP
+      - "14250:14250"  # Jaeger collector gRPC
+      - "9411:9411"    # Zipkin collector
+    
+    # Resource Limits
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+    
+    # Health Check
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:16686/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+    networks:
+      - monitoring-network
+
+  # Redis for Caching (optional, for session management)
+  redis:
+    image: redis:7-alpine
+    container_name: claude-redis
+    hostname: redis
+    restart: unless-stopped
+    
+    # Redis Configuration
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    
+    ports:
+      - "6379:6379"
+    
+    volumes:
+      - redis_data:/data
+    
+    # Resource Limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.3'
+    
+    # Health Check
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    
+    networks:
+      - nats-network
+
+  # NATS CLI Container for Management
+  nats-cli:
+    image: natsio/nats-box:0.14.3
+    container_name: nats-cli
+    hostname: nats-cli
+    restart: "no"  # Manual start for administration
+    
+    # Default to shell for interactive use
+    entrypoint: ["/bin/sh"]
+    stdin_open: true
+    tty: true
+    
+    volumes:
+      - ./creds:/nats-creds:ro
+      - ./keys:/nats-keys:ro
+      - ./scripts:/scripts:ro
+    
+    # Environment Variables
+    environment:
+      - NATS_URL=nats://nats:4222
+    
+    depends_on:
+      - nats
+    
+    networks:
+      - nats-network
+
+  # Log Aggregator (optional, for centralized logging)
+  fluentd:
+    image: fluentd:v1.16-1
+    container_name: fluentd
+    hostname: fluentd
+    restart: unless-stopped
+    
+    ports:
+      - "24224:24224"  # Fluentd forward input
+      - "9880:9880"    # Fluentd HTTP input
+    
+    volumes:
+      - ./monitoring/fluentd.conf:/fluentd/etc/fluent.conf:ro
+      - fluentd_logs:/var/log/fluentd
+    
+    # Resource Limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.3'
+    
+    networks:
+      - monitoring-network
+
+# Network Configuration
+networks:
+  nats-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+    
+  monitoring-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
+
+# Volume Configuration
+volumes:
+  # NATS Data
+  nats_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /data/nats
+  
+  nats_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/log/nats
+  
+  # Monitoring Data
+  prometheus_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /data/prometheus
+  
+  grafana_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /data/grafana
+  
+  alertmanager_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /data/alertmanager
+  
+  # Cache Data
+  redis_data:
+    driver: local
+  
+  # Logging Data
+  fluentd_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/log/fluentd

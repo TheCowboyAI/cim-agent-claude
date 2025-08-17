@@ -1,0 +1,32 @@
+[Unit]
+Description=Claude API to NATS Adapter
+After=network.target
+Requires=network.target
+
+[Service]
+Type=simple
+User=claude-adapter
+Group=claude-adapter
+WorkingDirectory=/opt/claude-adapter
+ExecStart=/opt/claude-adapter/simple-claude-adapter
+Restart=always
+RestartSec=5
+
+# Environment
+Environment=RUST_LOG=info
+Environment=NATS_URL=nats://localhost:4222
+EnvironmentFile=-/etc/claude-adapter/config
+
+# Security
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/log/claude-adapter
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=claude-adapter
+
+[Install]
+WantedBy=multi-user.target

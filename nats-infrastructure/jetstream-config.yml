@@ -1,0 +1,251 @@
+# NATS JetStream Configuration for Claude API Adapter
+# Production-ready configuration with proper persistence, durability, and security
+
+# JetStream Configuration
+jetstream:
+  enabled: true
+  store_dir: "/data/jetstream"
+  max_memory_store: 2147483648    # 2GB
+  max_file_store: 21474836480     # 20GB
+  
+# Stream Definitions
+streams:
+  # Command Stream - WorkQueue retention for reliable command processing
+  CLAUDE_COMMANDS:
+    subjects: 
+      - "claude.cmd.*.start"
+      - "claude.cmd.*.prompt" 
+      - "claude.cmd.*.end"
+      - "claude.cmd.*.cancel"
+    storage: "file"
+    retention: "workqueue"
+    max_consumers: 10
+    max_msgs: 100000
+    max_msg_size: 1048576          # 1MB per message
+    max_age: "86400s"              # 24 hours
+    max_bytes: 10737418240         # 10GB total storage
+    duplicate_window: "120s"       # 2 minutes deduplication
+    discard: "old"
+    replicas: 1
+    no_ack: false
+    deny_delete: false
+    deny_purge: false
+    allow_rollup_hdrs: false
+    
+  # Events Stream - Limits retention for event sourcing and audit
+  CLAUDE_EVENTS:
+    subjects:
+      - "claude.event.*.started"
+      - "claude.event.*.prompt_sent"
+      - "claude.event.*.ended"
+      - "claude.event.*.error"
+      - "claude.event.*.conversation_updated"
+    storage: "file"
+    retention: "limits"
+    max_consumers: 50
+    max_msgs: 1000000
+    max_msg_size: 1048576          # 1MB per message
+    max_age: "2592000s"            # 30 days
+    max_bytes: 53687091200         # 50GB total storage
+    duplicate_window: "300s"       # 5 minutes deduplication
+    discard: "old"
+    replicas: 1
+    no_ack: false
+    deny_delete: true              # Prevent accidental event deletion
+    deny_purge: true               # Prevent accidental event purging
+    allow_rollup_hdrs: false
+    
+  # Response Stream - Interest retention for temporary response caching
+  CLAUDE_RESPONSES:
+    subjects:
+      - "claude.resp.*.content"
+      - "claude.resp.*.streaming"
+      - "claude.resp.*.complete"
+      - "claude.resp.*.error"
+    storage: "file"
+    retention: "interest"
+    max_consumers: 20
+    max_msgs: 50000
+    max_msg_size: 10485760         # 10MB per response (large Claude responses)
+    max_age: "3600s"               # 1 hour
+    max_bytes: 5368709120          # 5GB total storage
+    duplicate_window: "60s"        # 1 minute deduplication
+    discard: "old"
+    replicas: 1
+    no_ack: false
+    deny_delete: false
+    deny_purge: false
+    allow_rollup_hdrs: false
+    
+  # Monitoring Stream - Dedicated stream for metrics and health data
+  CLAUDE_MONITORING:
+    subjects:
+      - "claude.monitor.health.>"
+      - "claude.monitor.metrics.>"
+      - "claude.monitor.trace.>"
+    storage: "file"
+    retention: "limits"
+    max_consumers: 5
+    max_msgs: 100000
+    max_msg_size: 524288           # 512KB per metric message
+    max_age: "604800s"             # 7 days
+    max_bytes: 1073741824          # 1GB total storage
+    duplicate_window: "30s"        # 30 seconds deduplication
+    discard: "old"
+    replicas: 1
+    
+# Consumer Definitions
+consumers:
+  # Primary command processor - handles all Claude commands
+  claude-command-processor:
+    stream_name: "CLAUDE_COMMANDS"
+    durable_name: "claude-cmd-processor-v1"
+    description: "Primary Claude command processor with retry logic"
+    deliver_policy: "new"
+    ack_policy: "explicit"
+    ack_wait: "30s"
+    max_deliver: 3
+    filter_subject: "claude.cmd.>"
+    replay_policy: "instant"
+    sample_freq: "10%"             # Sample 10% for monitoring
+    max_waiting: 100
+    max_ack_pending: 50
+    inactive_threshold: "86400s"   # 24 hours
+    
+  # Response distributor - distributes Claude API responses
+  claude-response-distributor:
+    stream_name: "CLAUDE_RESPONSES"  
+    durable_name: "claude-resp-dist-v1"
+    description: "Distributes Claude responses to subscribers"
+    deliver_policy: "all"
+    ack_policy: "explicit"
+    ack_wait: "15s"
+    max_deliver: 2
+    filter_subject: "claude.resp.>"
+    replay_policy: "instant"
+    sample_freq: "5%"
+    max_waiting: 50
+    max_ack_pending: 25
+    inactive_threshold: "3600s"    # 1 hour
+    
+  # Event processor for audit and analytics
+  claude-event-processor:
+    stream_name: "CLAUDE_EVENTS"
+    durable_name: "claude-event-proc-v1" 
+    description: "Processes domain events for analytics and audit"
+    deliver_policy: "all"
+    ack_policy: "explicit"
+    ack_wait: "60s"
+    max_deliver: 5
+    filter_subject: "claude.event.>"
+    replay_policy: "instant"
+    sample_freq: "100%"            # Process all events
+    max_waiting: 200
+    max_ack_pending: 100
+    inactive_threshold: "86400s"   # 24 hours
+    
+  # Monitoring consumer - processes health and metrics
+  claude-monitoring-consumer:
+    stream_name: "CLAUDE_MONITORING"
+    durable_name: "claude-monitor-v1"
+    description: "Processes monitoring and health data"  
+    deliver_policy: "new"
+    ack_policy: "explicit"
+    ack_wait: "10s"
+    max_deliver: 1                 # Don't retry monitoring data
+    filter_subject: "claude.monitor.>"
+    replay_policy: "instant"
+    max_waiting: 20
+    max_ack_pending: 10
+    inactive_threshold: "3600s"    # 1 hour
+    
+# KV Store Definitions
+kv_stores:
+  # Session state and context management
+  CLAUDE_SESSIONS:
+    description: "Claude conversation sessions and context"
+    max_value_size: 1048576        # 1MB per session
+    history: 10                    # Keep 10 versions
+    ttl: "86400s"                  # 24 hours
+    max_bucket_size: 1073741824    # 1GB total
+    replicas: 1
+    storage: "file"
+    
+  # Conversation metadata and state
+  CLAUDE_CONVERSATIONS:
+    description: "Conversation metadata and aggregate state"
+    max_value_size: 524288         # 512KB per conversation
+    history: 20                    # Keep more history for conversations
+    ttl: "2592000s"                # 30 days
+    max_bucket_size: 2147483648    # 2GB total  
+    replicas: 1
+    storage: "file"
+    
+  # Rate limiting and quota tracking
+  CLAUDE_RATE_LIMITS:
+    description: "Rate limiting counters and quotas"
+    max_value_size: 4096           # 4KB per rate limit entry
+    history: 5
+    ttl: "3600s"                   # 1 hour
+    max_bucket_size: 104857600     # 100MB total
+    replicas: 1
+    storage: "memory"              # Fast access for rate limiting
+    
+  # Circuit breaker state
+  CLAUDE_CIRCUIT_BREAKERS:
+    description: "Circuit breaker states for external APIs"
+    max_value_size: 8192           # 8KB per circuit breaker
+    history: 3
+    ttl: "1800s"                   # 30 minutes
+    max_bucket_size: 52428800      # 50MB total
+    replicas: 1
+    storage: "file"
+
+# Stream Templates for Dynamic Domain Creation  
+stream_templates:
+  # Template for domain-specific Claude streams
+  CLAUDE_DOMAIN_TEMPLATE:
+    name: "CLAUDE_DOMAIN_{{.domain}}"
+    subjects:
+      - "claude.{{.domain}}.cmd.>"
+      - "claude.{{.domain}}.event.>" 
+      - "claude.{{.domain}}.resp.>"
+    storage: "file"
+    retention: "limits"
+    max_msgs: 100000
+    max_age: "604800s"             # 7 days for domain streams
+    max_bytes: 5368709120          # 5GB
+    duplicate_window: "120s"
+    replicas: 1
+
+# Performance Tuning
+performance:
+  # Memory and CPU optimization
+  max_payload: 10485760            # 10MB max message size
+  max_connections: 1000
+  max_subscriptions: 10000
+  
+  # Network optimization  
+  ping_interval: "2m"
+  ping_max: 2
+  write_deadline: "10s"
+  
+  # JetStream optimization
+  max_outstanding: 1000
+  duplicate_window: "2m"
+  
+# Health Check Configuration
+health_checks:
+  enabled: true
+  port: 8222
+  endpoints:
+    - path: "/healthz"
+      description: "Basic health check"
+    - path: "/varz" 
+      description: "Server variables and stats"
+    - path: "/subsz"
+      description: "Subscription details"
+    - path: "/connz"
+      description: "Connection details"
+    - path: "/jsz"
+      description: "JetStream details"

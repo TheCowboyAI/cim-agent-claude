@@ -1,0 +1,486 @@
+# NATS KV Store Configuration for Claude API Adapter
+# Key-Value stores for conversation state, session management, and metadata
+
+# KV Store Definitions
+kv_stores:
+  # Primary conversation session storage
+  CLAUDE_SESSIONS:
+    description: "Active conversation sessions with state and context"
+    storage: "file"                        # Persistent storage
+    replicas: 1
+    placement_cluster: "nats-cluster"
+    placement_tags: ["ssd", "high-iops"]   # Performance requirements
+    
+    # Storage Configuration
+    max_value_size: 1048576                # 1MB per session
+    max_bucket_size: 10737418240           # 10GB total bucket size
+    history: 10                            # Keep 10 versions per key
+    ttl: "86400s"                          # 24 hours TTL
+    
+    # Performance Settings
+    compression: "s2"                      # Use S2 compression for efficiency
+    republish: "claude.kv.sessions.>"     # Republish changes to stream
+    mirror_direct: true                    # Enable direct access to mirrors
+    
+    # Key Patterns and Usage
+    key_patterns:
+      session_state: "session.{session_id}.state"
+      session_context: "session.{session_id}.context"  
+      session_metadata: "session.{session_id}.metadata"
+      session_participants: "session.{session_id}.participants"
+      session_config: "session.{session_id}.config"
+    
+    # Data Schemas
+    schemas:
+      session_state:
+        properties:
+          session_id: "string"
+          conversation_id: "string"
+          state: "enum[draft,processing,responded,ended]"
+          created_at: "timestamp"
+          updated_at: "timestamp"
+          last_activity: "timestamp"
+          
+      session_context:
+        properties:
+          conversation_history: "array[exchange]"
+          context_window_used: "integer"
+          context_window_limit: "integer"
+          prompt_count: "integer"
+          response_count: "integer"
+          
+      session_metadata:
+        properties:
+          user_id: "string"
+          tenant_id: "string"
+          client_info: "object"
+          rate_limit_info: "object"
+          
+  # Conversation aggregate storage
+  CLAUDE_CONVERSATIONS:
+    description: "Conversation aggregate state and business data"
+    storage: "file"
+    replicas: 1
+    placement_cluster: "nats-cluster"
+    
+    # Storage Configuration
+    max_value_size: 524288                 # 512KB per conversation
+    max_bucket_size: 21474836480           # 20GB total bucket size
+    history: 20                            # Keep more history for conversations
+    ttl: "2592000s"                        # 30 days TTL
+    
+    # Performance Settings  
+    compression: "s2"
+    republish: "claude.kv.conversations.>"
+    mirror_direct: true
+    
+    # Key Patterns
+    key_patterns:
+      conversation_aggregate: "conv.{conversation_id}.aggregate"
+      conversation_events: "conv.{conversation_id}.events"
+      conversation_snapshot: "conv.{conversation_id}.snapshot"
+      conversation_metadata: "conv.{conversation_id}.metadata"
+    
+    # Data Schemas
+    schemas:
+      conversation_aggregate:
+        properties:
+          conversation_id: "string"
+          session_id: "string" 
+          state: "string"
+          prompt_response_pairs: "array[exchange]"
+          business_invariants: "object"
+          version: "integer"
+          
+  # Rate limiting and quota management
+  CLAUDE_RATE_LIMITS:
+    description: "Rate limiting counters and quota tracking"
+    storage: "memory"                      # Fast in-memory storage
+    replicas: 1
+    
+    # Storage Configuration
+    max_value_size: 4096                   # 4KB per rate limit entry
+    max_bucket_size: 104857600             # 100MB total bucket size
+    history: 5                             # Minimal history for rate limits
+    ttl: "3600s"                          # 1 hour TTL
+    
+    # Performance Settings
+    compression: "none"                    # No compression for speed
+    republish: "claude.kv.ratelimits.>"
+    
+    # Key Patterns
+    key_patterns:
+      user_rate_limit: "rate.user.{user_id}"
+      conversation_rate_limit: "rate.conv.{conversation_id}"
+      api_rate_limit: "rate.api.claude"
+      tenant_rate_limit: "rate.tenant.{tenant_id}"
+    
+    # Data Schemas
+    schemas:
+      rate_limit_entry:
+        properties:
+          current_count: "integer"
+          limit: "integer"
+          window_start: "timestamp"
+          window_duration: "integer"
+          reset_time: "timestamp"
+          
+  # Circuit breaker states
+  CLAUDE_CIRCUIT_BREAKERS:
+    description: "Circuit breaker states for external API reliability"
+    storage: "file"
+    replicas: 1
+    
+    # Storage Configuration
+    max_value_size: 8192                   # 8KB per circuit breaker
+    max_bucket_size: 52428800              # 50MB total bucket size
+    history: 3                             # Limited history for circuit breakers
+    ttl: "1800s"                          # 30 minutes TTL
+    
+    # Performance Settings
+    compression: "s2"
+    republish: "claude.kv.circuitbreakers.>"
+    
+    # Key Patterns
+    key_patterns:
+      api_circuit_breaker: "cb.api.{api_endpoint}"
+      service_circuit_breaker: "cb.service.{service_name}"
+      
+    # Data Schemas
+    schemas:
+      circuit_breaker_state:
+        properties:
+          state: "enum[closed,open,half_open]"
+          failure_count: "integer"
+          failure_threshold: "integer"
+          last_failure_time: "timestamp"
+          next_attempt_time: "timestamp"
+          success_count: "integer"
+          
+  # Configuration and feature flags
+  CLAUDE_CONFIG:
+    description: "Dynamic configuration and feature flags"
+    storage: "file"
+    replicas: 1
+    
+    # Storage Configuration  
+    max_value_size: 65536                  # 64KB per config entry
+    max_bucket_size: 268435456             # 256MB total bucket size
+    history: 50                            # Keep config history
+    ttl: "0s"                             # No TTL - configs persist
+    
+    # Performance Settings
+    compression: "s2"
+    republish: "claude.kv.config.>"
+    
+    # Key Patterns
+    key_patterns:
+      feature_flags: "config.features.{feature_name}"
+      service_config: "config.service.{service_name}"
+      tenant_config: "config.tenant.{tenant_id}"
+      global_config: "config.global.{config_key}"
+      
+    # Data Schemas
+    schemas:
+      feature_flag:
+        properties:
+          enabled: "boolean"
+          rollout_percentage: "integer"
+          conditions: "object"
+          metadata: "object"
+          
+      service_config:
+        properties:
+          timeouts: "object"
+          retry_policies: "object"
+          limits: "object"
+          endpoints: "object"
+          
+  # User and tenant management
+  CLAUDE_USERS:
+    description: "User profiles and tenant information"
+    storage: "file"
+    replicas: 1
+    
+    # Storage Configuration
+    max_value_size: 32768                  # 32KB per user
+    max_bucket_size: 1073741824            # 1GB total bucket size
+    history: 5
+    ttl: "0s"                             # Persistent user data
+    
+    # Performance Settings
+    compression: "s2"
+    republish: "claude.kv.users.>"
+    
+    # Key Patterns
+    key_patterns:
+      user_profile: "user.{user_id}.profile"
+      user_preferences: "user.{user_id}.preferences"
+      user_quotas: "user.{user_id}.quotas"
+      tenant_info: "tenant.{tenant_id}.info"
+      tenant_limits: "tenant.{tenant_id}.limits"
+      
+    # Data Schemas
+    schemas:
+      user_profile:
+        properties:
+          user_id: "string"
+          tenant_id: "string"
+          email: "string"
+          created_at: "timestamp"
+          last_login: "timestamp"
+          permissions: "array[string]"
+          
+  # Audit and compliance tracking
+  CLAUDE_AUDIT:
+    description: "Audit trail and compliance data"
+    storage: "file"
+    replicas: 1
+    
+    # Storage Configuration
+    max_value_size: 262144                 # 256KB per audit entry
+    max_bucket_size: 5368709120            # 5GB total bucket size
+    history: 100                           # Keep extensive audit history
+    ttl: "31536000s"                      # 1 year TTL for compliance
+    
+    # Performance Settings
+    compression: "gzip"                    # Higher compression for audit data
+    republish: "claude.kv.audit.>"
+    
+    # Key Patterns
+    key_patterns:
+      audit_log: "audit.{date}.{user_id}.{sequence}"
+      compliance_record: "compliance.{regulation}.{entity_id}"
+      access_log: "access.{date}.{resource}.{user_id}"
+      
+    # Data Schemas  
+    schemas:
+      audit_entry:
+        properties:
+          timestamp: "timestamp"
+          user_id: "string"
+          action: "string"
+          resource: "string"
+          result: "string"
+          metadata: "object"
+
+# KV Store Operations and Patterns
+operations:
+  # Session Management Operations
+  session_operations:
+    create_session:
+      operation: "PUT"
+      key_pattern: "session.{session_id}.state"
+      value_schema: "session_state"
+      headers:
+        - "correlation_id"
+        - "user_id"
+        
+    update_session_context:
+      operation: "PUT" 
+      key_pattern: "session.{session_id}.context"
+      value_schema: "session_context"
+      conditional: true                    # Use conditional updates
+      expected_revision: "current"
+      
+    get_active_sessions:
+      operation: "KEYS"
+      key_pattern: "session.*.state"
+      filter: "state != 'ended'"
+      
+    cleanup_expired_sessions:
+      operation: "DELETE"
+      key_pattern: "session.*.state"
+      condition: "ttl_expired"
+      batch_size: 100
+      
+  # Rate Limiting Operations
+  rate_limit_operations:
+    check_rate_limit:
+      operation: "GET"
+      key_pattern: "rate.user.{user_id}"
+      default_value:
+        current_count: 0
+        limit: 100
+        window_start: "now"
+        
+    increment_rate_limit:
+      operation: "UPDATE"
+      key_pattern: "rate.user.{user_id}"
+      atomic: true
+      operation_type: "counter_increment"
+      
+    reset_rate_limit:
+      operation: "PUT"
+      key_pattern: "rate.user.{user_id}"
+      condition: "window_expired"
+      
+  # Circuit Breaker Operations
+  circuit_breaker_operations:
+    get_circuit_state:
+      operation: "GET"
+      key_pattern: "cb.api.{endpoint}"
+      default_value:
+        state: "closed"
+        failure_count: 0
+        
+    record_failure:
+      operation: "UPDATE"
+      key_pattern: "cb.api.{endpoint}"
+      atomic: true
+      update_logic: "increment_failure_count"
+      
+    record_success:
+      operation: "UPDATE"  
+      key_pattern: "cb.api.{endpoint}"
+      atomic: true
+      update_logic: "reset_failure_count"
+
+# KV Store Monitoring and Observability
+monitoring:
+  # Metrics Collection
+  metrics:
+    - name: "kv_operations_total"
+      description: "Total KV operations by bucket and operation type"
+      type: "counter"
+      labels: ["bucket", "operation", "status"]
+      
+    - name: "kv_bucket_size_bytes"
+      description: "Current size of KV buckets in bytes"
+      type: "gauge"
+      labels: ["bucket"]
+      
+    - name: "kv_key_count"
+      description: "Number of keys per bucket"
+      type: "gauge" 
+      labels: ["bucket"]
+      
+    - name: "kv_operation_duration"
+      description: "KV operation duration in seconds"
+      type: "histogram"
+      labels: ["bucket", "operation"]
+      
+    - name: "kv_ttl_expiration"
+      description: "Keys expiring due to TTL"
+      type: "counter"
+      labels: ["bucket"]
+      
+  # Health Checks
+  health_checks:
+    - name: "kv_bucket_availability"
+      description: "Check if KV buckets are accessible"
+      interval: "30s"
+      timeout: "5s"
+      
+    - name: "kv_operation_latency"
+      description: "Monitor KV operation response times"
+      interval: "60s"
+      threshold: "100ms"
+      
+    - name: "kv_storage_utilization"
+      description: "Monitor storage usage per bucket"
+      interval: "300s"
+      warning_threshold: "80%"
+      critical_threshold: "95%"
+      
+  # Alerting Rules
+  alerts:
+    - name: "kv_bucket_unavailable"
+      condition: "kv_bucket_availability == 0"
+      severity: "critical"
+      duration: "1m"
+      
+    - name: "kv_high_latency"
+      condition: "kv_operation_duration{quantile='0.95'} > 0.1"
+      severity: "warning"
+      duration: "5m"
+      
+    - name: "kv_storage_full"
+      condition: "kv_storage_utilization > 95"
+      severity: "critical"
+      duration: "1m"
+
+# KV Store Security Configuration
+security:
+  # Access Control
+  access_control:
+    # Session store permissions
+    sessions_access:
+      read_subjects: ["claude.service", "session.manager"]
+      write_subjects: ["claude.service"] 
+      admin_subjects: ["system.admin"]
+      
+    # Rate limit store permissions
+    rate_limits_access:
+      read_subjects: ["claude.service", "rate.limiter"]
+      write_subjects: ["rate.limiter"]
+      admin_subjects: ["system.admin"]
+      
+    # Configuration store permissions
+    config_access:
+      read_subjects: ["claude.service", "config.reader"]
+      write_subjects: ["config.manager"]
+      admin_subjects: ["system.admin"]
+      
+    # Audit store permissions
+    audit_access:
+      read_subjects: ["audit.reader", "compliance.officer"]
+      write_subjects: ["audit.service"]
+      admin_subjects: ["system.admin"]
+      
+  # Encryption
+  encryption:
+    at_rest:
+      enabled: true
+      algorithm: "AES-256-GCM"
+      key_rotation_interval: "30d"
+      
+    in_transit:
+      enabled: true
+      tls_version: "1.3"
+      cipher_suites: ["TLS_AES_256_GCM_SHA384"]
+      
+  # Key Management
+  key_management:
+    sensitive_keys:
+      - "user.*.profile"
+      - "audit.*"
+      - "session.*.context"
+    encryption_required: true
+    access_logging: true
+
+# KV Store Backup and Recovery
+backup_recovery:
+  # Backup Configuration
+  backup:
+    enabled: true
+    schedule: "0 2 * * *"                 # Daily at 2 AM
+    retention: "30d"
+    compression: true
+    storage_location: "/backup/nats/kv"
+    
+    # Bucket-specific backup policies
+    bucket_policies:
+      CLAUDE_SESSIONS:
+        backup_frequency: "4h"            # More frequent for active sessions
+        retention: "7d"
+        
+      CLAUDE_CONVERSATIONS:
+        backup_frequency: "12h"
+        retention: "90d"                  # Longer retention for conversations
+        
+      CLAUDE_AUDIT:
+        backup_frequency: "1h"            # Frequent backup for audit data
+        retention: "365d"                 # 1 year retention for compliance
+        
+  # Recovery Procedures
+  recovery:
+    point_in_time_recovery: true
+    maximum_recovery_time: "1h"
+    recovery_point_objective: "15m"
+    
+    # Recovery Testing
+    automated_recovery_tests:
+      enabled: true
+      schedule: "0 3 * * 0"               # Weekly on Sunday at 3 AM
+      test_buckets: ["CLAUDE_SESSIONS"]   # Test critical buckets only

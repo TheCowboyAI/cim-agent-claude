@@ -1,0 +1,635 @@
+# NATS Security Configuration for Claude API Adapter
+# NSC-based security with accounts, users, and fine-grained permissions
+
+# Operator Configuration
+operator:
+  name: "CIM_CLAUDE_OPERATOR"
+  description: "NATS operator for Claude API adapter infrastructure"
+  system_account: "SYS"
+  
+  # Operator Signing Keys
+  signing_keys:
+    - "OABC123..."  # Primary operator signing key
+    - "ODEF456..."  # Backup operator signing key
+    
+  # Operator Claims
+  operator_service_urls:
+    - "nats://nats.claude.internal:4222"
+    - "nats://nats-backup.claude.internal:4222"
+    
+# Account Definitions
+accounts:
+  # System Account - Core NATS functionality
+  SYS:
+    description: "System account for NATS server operations"
+    signing_keys:
+      - "ASYS123..."
+    
+    # System account limits
+    limits:
+      connections: 100
+      subscriptions: 1000
+      data: -1                           # Unlimited data
+      payload: -1                        # Unlimited payload
+      
+    # System subjects
+    subjects:
+      publish:
+        allow: ["$SYS.>"]
+      subscribe:  
+        allow: ["$SYS.>"]
+        
+  # Claude Service Account - Primary service operations
+  CLAUDE_SERVICE:
+    description: "Main account for Claude API adapter service operations"
+    signing_keys:
+      - "ACLD123..."
+      - "ACLD456..."                     # Backup signing key
+      
+    # JetStream Configuration
+    jetstream:
+      memory_storage: 2147483648         # 2GB memory
+      disk_storage: 21474836480          # 20GB disk
+      streams: 20
+      consumers: 100
+      
+    # Account Limits
+    limits:
+      connections: 100
+      subscriptions: 1000
+      data: 21474836480                  # 20GB total data
+      payload: 10485760                  # 10MB max payload
+      
+    # Tiered Limits for Different Client Types
+    tiered_limits:
+      service_clients:
+        connections: 10
+        subscriptions: 200
+        data: 5368709120                 # 5GB per service
+        
+      monitoring_clients:
+        connections: 5
+        subscriptions: 100
+        data: 1073741824                 # 1GB for monitoring
+        
+    # Import/Export Configuration
+    imports:
+      - name: "system_events"
+        subject: "$SYS.ACCOUNT.>.CLIENTS"
+        account: "SYS"
+        type: "stream"
+        
+    exports:
+      - name: "claude_events"
+        subject: "claude.event.>"
+        type: "stream"
+        accounts: ["MONITORING", "AUDIT"]
+        
+      - name: "claude_api"
+        subject: "claude.api.>"
+        type: "service"
+        response_type: "stream"
+        accounts: ["API_GATEWAY"]
+        
+  # API Gateway Account - External API access
+  API_GATEWAY:
+    description: "Account for API gateway and external client access"
+    signing_keys:
+      - "AAPI123..."
+      
+    # Gateway Limits
+    limits:
+      connections: 200
+      subscriptions: 500
+      data: 5368709120                   # 5GB
+      payload: 1048576                   # 1MB payload limit
+      
+    # Import Claude Services
+    imports:
+      - name: "claude_api_access"
+        subject: "claude.api.>"
+        account: "CLAUDE_SERVICE"
+        type: "service"
+        
+    # Gateway-specific Subjects
+    subjects:
+      publish:
+        allow: 
+          - "claude.cmd.>"
+          - "gateway.>"
+          - "_INBOX.>"
+        deny: 
+          - "claude.cmd.system.>"        # No system commands
+      subscribe:
+        allow:
+          - "claude.resp.>"
+          - "claude.event.*.started"
+          - "claude.event.*.ended"
+          - "_INBOX.>"
+        deny:
+          - "claude.internal.>"          # No internal subjects
+          
+  # Monitoring Account - Observability and metrics
+  MONITORING:
+    description: "Account for monitoring, metrics, and observability services"
+    signing_keys:
+      - "AMON123..."
+      
+    # Monitoring Limits
+    limits:
+      connections: 50
+      subscriptions: 1000
+      data: 10737418240                  # 10GB for metrics storage
+      payload: 1048576                   # 1MB
+      
+    # Import Claude Events
+    imports:
+      - name: "claude_events_monitoring"
+        subject: "claude.event.>"
+        account: "CLAUDE_SERVICE"
+        type: "stream"
+        
+      - name: "system_monitoring"
+        subject: "$SYS.>"
+        account: "SYS"
+        type: "stream"
+        
+    # Monitoring Subjects
+    subjects:
+      publish:
+        allow:
+          - "monitoring.>"
+          - "metrics.>"
+          - "alerts.>"
+        deny: []
+      subscribe:
+        allow:
+          - "claude.event.>"
+          - "claude.monitor.>"
+          - "$SYS.>"
+          - "monitoring.>"
+        deny: 
+          - "claude.cmd.>"               # No command access
+          
+  # Audit Account - Compliance and audit logging
+  AUDIT:
+    description: "Account for audit logging and compliance tracking"
+    signing_keys:
+      - "AAUD123..."
+      
+    # Audit Limits
+    limits:
+      connections: 10
+      subscriptions: 200  
+      data: 53687091200                  # 50GB for audit storage
+      payload: 1048576
+      
+    # Import Events for Auditing
+    imports:
+      - name: "claude_audit_events"
+        subject: "claude.event.>"
+        account: "CLAUDE_SERVICE"
+        type: "stream"
+        
+      - name: "system_audit_events"
+        subject: "$SYS.ACCOUNT.>"
+        account: "SYS" 
+        type: "stream"
+        
+    # Audit Subjects
+    subjects:
+      publish:
+        allow:
+          - "audit.>"
+          - "compliance.>"
+        deny: []
+      subscribe:
+        allow:
+          - "claude.event.>"
+          - "$SYS.ACCOUNT.>"
+          - "audit.>"
+        deny:
+          - "claude.cmd.>"
+          - "claude.resp.>"
+
+# User Definitions per Account
+users:
+  # Claude Service Users
+  CLAUDE_SERVICE:
+    # Main Claude service instance
+    claude-service-primary:
+      description: "Primary Claude API adapter service"
+      signing_keys:
+        - "UCLD001..."
+        
+      # Service Permissions
+      permissions:
+        publish:
+          allow:
+            - "claude.event.>"
+            - "claude.resp.>"
+            - "claude.monitor.>"
+            - "_INBOX.>"
+          deny: []
+        subscribe:
+          allow:
+            - "claude.cmd.>"
+            - "claude.internal.>"
+            - "_INBOX.>"
+          deny: []
+          
+      # Connection Limits
+      limits:
+        connections: 10
+        subscriptions: 200
+        payload: 10485760                # 10MB
+        
+      # Bearer Token (for JWT auth)
+      bearer_token: true
+      
+    # Claude service workers
+    claude-service-worker:
+      description: "Claude service worker instances"
+      signing_keys:
+        - "UCLD002..."
+        
+      # Worker Permissions
+      permissions:
+        publish:
+          allow:
+            - "claude.event.>"
+            - "claude.resp.>"
+            - "_INBOX.>"
+          deny:
+            - "claude.monitor.system.>"   # No system monitoring
+        subscribe:
+          allow:
+            - "claude.cmd.>"
+            - "_INBOX.>"
+          deny:
+            - "claude.internal.system.>"  # No internal system access
+            
+      # Worker Limits
+      limits:
+        connections: 5
+        subscriptions: 100
+        payload: 1048576                 # 1MB
+        
+    # Database service user
+    claude-database-service:
+      description: "Database service for persistence"
+      signing_keys:
+        - "UCLD003..."
+        
+      permissions:
+        publish:
+          allow:
+            - "claude.event.stored"
+            - "db.>"
+            - "_INBOX.>"
+          deny: []
+        subscribe:
+          allow:
+            - "claude.event.>"           # Subscribe to events for storage
+            - "db.query.>"
+            - "_INBOX.>"
+          deny:
+            - "claude.cmd.>"             # No direct command access
+            
+      limits:
+        connections: 3
+        subscriptions: 50
+        payload: 1048576
+
+  # API Gateway Users  
+  API_GATEWAY:
+    # Main gateway service
+    api-gateway-service:
+      description: "API Gateway service for external clients"
+      signing_keys:
+        - "UAPI001..."
+        
+      permissions:
+        publish:
+          allow:
+            - "claude.cmd.>"
+            - "gateway.>"
+            - "_INBOX.>"
+          deny:
+            - "claude.cmd.system.>"
+        subscribe:
+          allow:
+            - "claude.resp.>"
+            - "claude.event.*.started"
+            - "claude.event.*.ended" 
+            - "_INBOX.>"
+          deny:
+            - "claude.internal.>"
+            
+      limits:
+        connections: 20
+        subscriptions: 100
+        payload: 1048576
+        
+    # Load balancer user
+    api-gateway-lb:
+      description: "Load balancer for API gateway"
+      signing_keys:
+        - "UAPI002..."
+        
+      permissions:
+        publish:
+          allow:
+            - "gateway.lb.>"
+            - "_INBOX.>"
+          deny: []
+        subscribe:
+          allow:
+            - "claude.resp.>"
+            - "gateway.>"
+            - "_INBOX.>"
+          deny:
+            - "claude.cmd.>"
+            
+      limits:
+        connections: 5
+        subscriptions: 50
+        payload: 524288                  # 512KB
+
+  # Monitoring Users
+  MONITORING:
+    # Prometheus metrics collector
+    prometheus-collector:
+      description: "Prometheus metrics collection service"
+      signing_keys:
+        - "UMON001..."
+        
+      permissions:
+        publish:
+          allow:
+            - "metrics.>"
+            - "_INBOX.>"
+          deny: []
+        subscribe:
+          allow:
+            - "claude.event.>"
+            - "claude.monitor.>"
+            - "$SYS.>"
+            - "_INBOX.>"
+          deny: []
+          
+      limits:
+        connections: 5
+        subscriptions: 500
+        payload: 1048576
+        
+    # Alert manager
+    alert-manager:
+      description: "Alert management service"
+      signing_keys:
+        - "UMON002..."
+        
+      permissions:
+        publish:
+          allow:
+            - "alerts.>"
+            - "notifications.>"
+            - "_INBOX.>"
+          deny: []
+        subscribe:
+          allow:
+            - "metrics.>"
+            - "claude.monitor.>"
+            - "_INBOX.>"
+          deny: []
+          
+      limits:
+        connections: 3
+        subscriptions: 100
+        payload: 524288
+
+  # Audit Users
+  AUDIT:
+    # Audit service
+    audit-service:
+      description: "Audit logging and compliance service"
+      signing_keys:
+        - "UAUD001..."
+        
+      permissions:
+        publish:
+          allow:
+            - "audit.>"
+            - "compliance.>"
+            - "_INBOX.>"
+          deny: []
+        subscribe:
+          allow:
+            - "claude.event.>"
+            - "$SYS.ACCOUNT.>"
+            - "_INBOX.>"
+          deny: []
+          
+      limits:
+        connections: 5
+        subscriptions: 200
+        payload: 1048576
+        
+    # Compliance officer access
+    compliance-officer:
+      description: "Read-only access for compliance officers"
+      signing_keys:
+        - "UAUD002..."
+        
+      permissions:
+        publish:
+          allow:
+            - "_INBOX.>"
+          deny: []
+        subscribe:
+          allow:
+            - "audit.>"
+            - "compliance.>"
+            - "claude.event.>"
+            - "_INBOX.>"
+          deny: []
+          
+      limits:
+        connections: 2
+        subscriptions: 100
+        payload: 1048576
+
+# NATS Server Security Configuration
+server_security:
+  # TLS Configuration
+  tls:
+    cert_file: "/etc/nats/server-cert.pem"
+    key_file: "/etc/nats/server-key.pem"
+    ca_file: "/etc/nats/ca-cert.pem"
+    verify: true
+    verify_and_map: true
+    timeout: "5s"
+    
+  # Authorization
+  authorization:
+    # Use JWT-based authorization
+    resolver: "MEMORY"                   # Use memory resolver for JWT
+    resolver_preload: "/etc/nats/accounts"
+    
+    # System Account
+    system_account: "SYS"
+    
+    # Default Permissions (Deny All)
+    default_permissions:
+      publish:
+        deny: [">"]
+      subscribe:
+        deny: [">"]
+        
+  # Authentication Methods
+  authentication:
+    # NKey Authentication
+    nkeys:
+      enabled: true
+      allowed_connection_types: ["NKEY"]
+      
+    # JWT Authentication  
+    jwt:
+      enabled: true
+      jwt_public_key: "/etc/nats/jwt-public.key"
+      
+    # Token Authentication (fallback)
+    token:
+      enabled: false                     # Disabled for security
+      
+  # Connection Security
+  connection_security:
+    # Rate Limiting
+    ping_interval: "2m"
+    ping_max: 2
+    write_deadline: "10s"
+    
+    # Connection Limits
+    max_connections: 1000
+    max_subscriptions_per_connection: 1000
+    max_payload: 10485760               # 10MB
+    
+    # Client Authentication Timeout
+    authentication_timeout: "30s"
+    
+# Security Monitoring and Auditing
+security_monitoring:
+  # Authentication Events
+  authentication_logging:
+    enabled: true
+    log_level: "INFO"
+    include_metadata: true
+    
+    # Events to Log
+    events:
+      - "authentication_success"
+      - "authentication_failure" 
+      - "authorization_failure"
+      - "connection_established"
+      - "connection_terminated"
+      
+  # Authorization Auditing
+  authorization_auditing:
+    enabled: true
+    audit_subject_access: true
+    audit_failed_publishes: true
+    audit_failed_subscribes: true
+    
+  # Security Metrics
+  security_metrics:
+    - name: "nats_authentication_attempts_total"
+      description: "Total authentication attempts"
+      type: "counter"
+      labels: ["account", "user", "result"]
+      
+    - name: "nats_authorization_failures_total"
+      description: "Authorization failures"
+      type: "counter"
+      labels: ["account", "user", "subject"]
+      
+    - name: "nats_active_connections"
+      description: "Active connections per account"
+      type: "gauge"
+      labels: ["account"]
+      
+    - name: "nats_subject_access_denied_total"
+      description: "Subject access denials"
+      type: "counter"
+      labels: ["account", "user", "subject", "operation"]
+
+# Key Management and Rotation
+key_management:
+  # Automatic Key Rotation
+  rotation:
+    enabled: true
+    rotation_interval: "30d"            # Rotate keys every 30 days
+    retention_period: "90d"             # Keep old keys for 90 days
+    
+    # Rotation Schedule
+    schedule:
+      operator_keys: "0 2 1 * *"        # Monthly on 1st at 2 AM
+      account_keys: "0 3 15 * *"        # Monthly on 15th at 3 AM
+      user_keys: "0 4 * * 0"            # Weekly on Sunday at 4 AM
+      
+  # Key Storage
+  storage:
+    backend: "vault"                    # Use HashiCorp Vault
+    vault_path: "secret/nats/keys"
+    
+    # Backup Storage
+    backup_backend: "encrypted_file"
+    backup_path: "/secure/nats/key-backups"
+    
+  # Emergency Procedures
+  emergency:
+    # Emergency key revocation
+    revocation:
+      enabled: true
+      revocation_list: "/etc/nats/revoked-keys.json"
+      check_interval: "5m"
+      
+    # Emergency admin access
+    admin_override:
+      enabled: true
+      override_key: "OEMER123..."       # Emergency operator key
+      expiration: "24h"                 # Override expires in 24 hours
+
+# Compliance and Regulatory Requirements
+compliance:
+  # Data Protection
+  data_protection:
+    encryption_at_rest: true
+    encryption_in_transit: true
+    key_escrow: false                   # No key escrow
+    
+    # PII Handling
+    pii_subjects:
+      - "claude.cmd.*.start"            # May contain user prompts
+      - "claude.resp.*.content"         # Contains Claude responses
+    pii_encryption: "AES-256-GCM"
+    pii_retention: "90d"
+    
+  # Audit Requirements
+  audit_requirements:
+    # SOC 2 Type II Compliance
+    soc2:
+      enabled: true
+      log_retention: "7y"
+      access_reviews: "quarterly"
+      
+    # GDPR Compliance
+    gdpr:
+      enabled: true
+      data_retention: "2y"
+      right_to_deletion: true
+      
+    # HIPAA Compliance (if handling health data)
+    hipaa:
+      enabled: false
+      encryption_required: true
+      access_logging: true

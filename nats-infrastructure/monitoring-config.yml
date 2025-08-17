@@ -1,0 +1,561 @@
+# NATS Monitoring and Observability Configuration for Claude API Adapter
+# Comprehensive monitoring setup with metrics, health checks, and alerting
+
+# Monitoring Overview
+monitoring:
+  description: "Production monitoring for Claude NATS infrastructure"
+  enabled: true
+  
+  # Monitoring Endpoints
+  endpoints:
+    # NATS Server monitoring
+    nats_monitoring:
+      enabled: true
+      port: 8222
+      path: "/varz"
+      
+    # Prometheus metrics endpoint
+    prometheus:
+      enabled: true
+      port: 7777
+      path: "/metrics"
+      
+    # Health check endpoint
+    health:
+      enabled: true
+      port: 8080
+      path: "/health"
+
+# Core Metrics Collection
+metrics:
+  # NATS Server Core Metrics
+  server_metrics:
+    - name: "nats_server_info"
+      description: "NATS server information and version"
+      type: "info"
+      labels: ["server_id", "version", "cluster", "jetstream"]
+      
+    - name: "nats_connections_current"
+      description: "Current number of client connections"
+      type: "gauge"
+      labels: ["server_id"]
+      
+    - name: "nats_connections_total" 
+      description: "Total number of client connections since start"
+      type: "counter"
+      labels: ["server_id"]
+      
+    - name: "nats_messages_in_total"
+      description: "Total number of messages received"
+      type: "counter"
+      labels: ["server_id"]
+      
+    - name: "nats_messages_out_total"
+      description: "Total number of messages sent"
+      type: "counter"
+      labels: ["server_id"]
+      
+    - name: "nats_bytes_in_total"
+      description: "Total bytes received"
+      type: "counter"
+      labels: ["server_id"]
+      
+    - name: "nats_bytes_out_total"
+      description: "Total bytes sent"
+      type: "counter"
+      labels: ["server_id"]
+      
+    - name: "nats_subscriptions_current"
+      description: "Current number of subscriptions"
+      type: "gauge"
+      labels: ["server_id"]
+
+  # JetStream Metrics
+  jetstream_metrics:
+    - name: "nats_jetstream_enabled"
+      description: "JetStream enabled status"
+      type: "gauge"
+      labels: ["server_id"]
+      
+    - name: "nats_jetstream_memory_used_bytes"
+      description: "JetStream memory storage used"
+      type: "gauge"
+      labels: ["server_id"]
+      
+    - name: "nats_jetstream_file_used_bytes" 
+      description: "JetStream file storage used"
+      type: "gauge"
+      labels: ["server_id"]
+      
+    - name: "nats_jetstream_streams_current"
+      description: "Current number of JetStream streams"
+      type: "gauge"
+      labels: ["server_id"]
+      
+    - name: "nats_jetstream_consumers_current"
+      description: "Current number of JetStream consumers"
+      type: "gauge"
+      labels: ["server_id"]
+
+  # Stream-Specific Metrics
+  stream_metrics:
+    - name: "nats_stream_messages_current"
+      description: "Current number of messages in stream"
+      type: "gauge"
+      labels: ["stream_name", "server_id"]
+      
+    - name: "nats_stream_bytes_current"
+      description: "Current bytes used by stream"
+      type: "gauge"
+      labels: ["stream_name", "server_id"]
+      
+    - name: "nats_stream_messages_total"
+      description: "Total messages added to stream"
+      type: "counter"
+      labels: ["stream_name", "server_id"]
+      
+    - name: "nats_stream_first_sequence"
+      description: "First sequence number in stream"
+      type: "gauge"
+      labels: ["stream_name", "server_id"]
+      
+    - name: "nats_stream_last_sequence"
+      description: "Last sequence number in stream"
+      type: "gauge"
+      labels: ["stream_name", "server_id"]
+      
+    - name: "nats_stream_consumer_count"
+      description: "Number of consumers for stream"
+      type: "gauge"
+      labels: ["stream_name", "server_id"]
+
+  # Consumer-Specific Metrics  
+  consumer_metrics:
+    - name: "nats_consumer_delivered_total"
+      description: "Total messages delivered to consumer"
+      type: "counter"
+      labels: ["stream_name", "consumer_name", "server_id"]
+      
+    - name: "nats_consumer_acked_total"
+      description: "Total messages acknowledged by consumer"
+      type: "counter"
+      labels: ["stream_name", "consumer_name", "server_id"]
+      
+    - name: "nats_consumer_pending_current"
+      description: "Current number of pending messages"
+      type: "gauge"
+      labels: ["stream_name", "consumer_name", "server_id"]
+      
+    - name: "nats_consumer_redelivered_total"
+      description: "Total redelivered messages"
+      type: "counter"
+      labels: ["stream_name", "consumer_name", "server_id"]
+      
+    - name: "nats_consumer_lag_current"
+      description: "Current consumer lag (messages behind)"
+      type: "gauge"
+      labels: ["stream_name", "consumer_name", "server_id"]
+      
+    - name: "nats_consumer_ack_floor_sequence"
+      description: "Consumer acknowledgment floor sequence"
+      type: "gauge"
+      labels: ["stream_name", "consumer_name", "server_id"]
+
+  # Claude-Specific Application Metrics
+  claude_metrics:
+    - name: "claude_conversations_active_current"
+      description: "Current number of active conversations"
+      type: "gauge"
+      labels: ["instance_id"]
+      
+    - name: "claude_conversations_total"
+      description: "Total conversations started"
+      type: "counter"
+      labels: ["instance_id"]
+      
+    - name: "claude_prompts_sent_total"
+      description: "Total prompts sent to Claude API"
+      type: "counter"
+      labels: ["instance_id"]
+      
+    - name: "claude_responses_received_total"
+      description: "Total responses received from Claude API"
+      type: "counter"
+      labels: ["instance_id", "status_code"]
+      
+    - name: "claude_response_time_seconds"
+      description: "Claude API response time in seconds"
+      type: "histogram"
+      labels: ["instance_id"]
+      buckets: [0.1, 0.5, 1, 2, 5, 10, 30]
+      
+    - name: "claude_api_rate_limit_remaining"
+      description: "Remaining Claude API rate limit"
+      type: "gauge"
+      labels: ["instance_id", "limit_type"]
+      
+    - name: "claude_errors_total"
+      description: "Total Claude API errors"
+      type: "counter"
+      labels: ["instance_id", "error_type", "error_code"]
+
+  # KV Store Metrics
+  kv_metrics:
+    - name: "nats_kv_bucket_values_current"
+      description: "Current number of values in KV bucket"
+      type: "gauge"
+      labels: ["bucket_name", "server_id"]
+      
+    - name: "nats_kv_bucket_bytes_current"
+      description: "Current bytes used by KV bucket"
+      type: "gauge"
+      labels: ["bucket_name", "server_id"]
+      
+    - name: "nats_kv_operations_total"
+      description: "Total KV operations"
+      type: "counter"
+      labels: ["bucket_name", "operation", "status", "server_id"]
+      
+    - name: "nats_kv_operation_duration_seconds"
+      description: "KV operation duration in seconds"
+      type: "histogram"
+      labels: ["bucket_name", "operation", "server_id"]
+      buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25]
+
+  # Security and Authentication Metrics
+  security_metrics:
+    - name: "nats_auth_attempts_total"
+      description: "Authentication attempts"
+      type: "counter"
+      labels: ["account", "result", "server_id"]
+      
+    - name: "nats_authorization_failures_total"
+      description: "Authorization failures"
+      type: "counter"
+      labels: ["account", "user", "subject", "server_id"]
+      
+    - name: "nats_tls_connections_current"
+      description: "Current TLS connections"
+      type: "gauge"
+      labels: ["server_id"]
+
+# Health Checks Configuration
+health_checks:
+  # NATS Server Health
+  server_health:
+    enabled: true
+    interval: "30s"
+    timeout: "5s"
+    
+    checks:
+      - name: "nats_server_connectivity"
+        description: "Check NATS server connectivity"
+        endpoint: "nats://localhost:4222"
+        
+      - name: "jetstream_availability"
+        description: "Check JetStream availability"
+        test_subject: "health.jetstream.test"
+        
+      - name: "memory_usage"
+        description: "Check memory usage"
+        warning_threshold: "80%"
+        critical_threshold: "95%"
+        
+      - name: "disk_space"
+        description: "Check disk space for JetStream"
+        warning_threshold: "80%"
+        critical_threshold: "90%"
+
+  # Stream Health Checks
+  stream_health:
+    enabled: true
+    interval: "60s"
+    timeout: "10s"
+    
+    # Per-stream health checks
+    streams:
+      CLAUDE_COMMANDS:
+        checks:
+          - name: "stream_exists"
+            description: "Verify stream exists and is accessible"
+            
+          - name: "consumer_lag"
+            description: "Check consumer lag is within acceptable limits"
+            warning_threshold: 1000
+            critical_threshold: 5000
+            
+          - name: "message_rate"
+            description: "Check message ingestion rate"
+            expected_min_rate: 1            # At least 1 message per check interval
+            
+      CLAUDE_EVENTS:
+        checks:
+          - name: "stream_exists"
+          - name: "consumer_lag"
+            warning_threshold: 500
+            critical_threshold: 2000
+          - name: "storage_usage"
+            warning_threshold: "70%"
+            critical_threshold: "85%"
+            
+      CLAUDE_RESPONSES:
+        checks:
+          - name: "stream_exists"
+          - name: "consumer_lag"
+            warning_threshold: 100
+            critical_threshold: 500
+          - name: "message_age"
+            description: "Check oldest message age"
+            warning_threshold: "30m"
+            critical_threshold: "1h"
+
+  # Consumer Health Checks
+  consumer_health:
+    enabled: true
+    interval: "45s"
+    
+    consumers:
+      claude-command-processor:
+        checks:
+          - name: "consumer_active"
+            description: "Consumer is active and processing"
+            
+          - name: "ack_percentage"
+            description: "Message acknowledgment percentage"
+            warning_threshold: "95%"
+            critical_threshold: "90%"
+            
+          - name: "redelivery_rate"
+            description: "Message redelivery rate"
+            warning_threshold: "5%"
+            critical_threshold: "10%"
+
+  # Application Health Checks
+  application_health:
+    enabled: true
+    interval: "30s"
+    
+    checks:
+      - name: "claude_api_connectivity"
+        description: "Check Claude API connectivity"
+        endpoint: "https://api.anthropic.com"
+        timeout: "10s"
+        
+      - name: "database_connectivity"
+        description: "Check database connectivity"
+        
+      - name: "circuit_breaker_status"
+        description: "Check circuit breaker states"
+        warning_conditions:
+          - "circuit_breaker_state == 'half_open'"
+        critical_conditions:
+          - "circuit_breaker_state == 'open'"
+
+# Alerting Configuration
+alerting:
+  # Alert Manager Configuration
+  alert_manager:
+    enabled: true
+    webhook_url: "http://alertmanager:9093/api/v1/alerts"
+    
+  # Alert Rules
+  rules:
+    # Critical Alerts
+    critical:
+      - name: "nats_server_down"
+        condition: "up{job='nats'} == 0"
+        for: "30s"
+        description: "NATS server is down"
+        runbook_url: "https://wiki.company.com/nats-server-down"
+        
+      - name: "jetstream_storage_critical"
+        condition: "nats_jetstream_file_used_bytes / nats_jetstream_file_max_bytes > 0.95"
+        for: "2m"
+        description: "JetStream file storage usage is critical"
+        
+      - name: "consumer_lag_critical"
+        condition: "nats_consumer_lag_current > 5000"
+        for: "5m"
+        description: "Consumer lag is critically high"
+        labels:
+          severity: "critical"
+          
+      - name: "claude_api_errors_high"
+        condition: "rate(claude_errors_total[5m]) > 10"
+        for: "2m"
+        description: "High rate of Claude API errors"
+        
+    # Warning Alerts
+    warning:
+      - name: "nats_connections_high"
+        condition: "nats_connections_current > 800"
+        for: "5m"
+        description: "High number of NATS connections"
+        
+      - name: "consumer_redeliveries_high"
+        condition: "rate(nats_consumer_redelivered_total[10m]) > 5"
+        for: "5m"
+        description: "High consumer redelivery rate"
+        
+      - name: "claude_response_time_slow"
+        condition: "claude_response_time_seconds{quantile='0.95'} > 10"
+        for: "3m"
+        description: "Claude API response times are slow"
+        
+      - name: "stream_growth_rate_high"
+        condition: "rate(nats_stream_messages_total[1h]) > 10000"
+        for: "10m"
+        description: "Stream message growth rate is unusually high"
+        
+    # Info Alerts
+    info:
+      - name: "new_consumer_created"
+        condition: "increase(nats_jetstream_consumers_current[5m]) > 0"
+        for: "0s"
+        description: "New JetStream consumer created"
+        
+      - name: "stream_configuration_changed"
+        condition: "changes(nats_stream_info[1h]) > 0"
+        for: "0s"
+        description: "Stream configuration has been modified"
+
+# Logging Configuration
+logging:
+  # Log Levels
+  levels:
+    nats_server: "INFO"
+    application: "INFO"
+    security: "WARN"
+    performance: "DEBUG"
+    
+  # Log Formatting
+  format: "json"
+  timestamp_format: "rfc3339"
+  
+  # Log Destinations
+  destinations:
+    - type: "file"
+      path: "/var/log/nats/server.log"
+      max_size: "100MB"
+      max_age: "30d"
+      max_backups: 10
+      
+    - type: "stdout"
+      enabled: true
+      
+    - type: "syslog"
+      enabled: false
+      facility: "daemon"
+      
+  # Structured Logging Fields
+  fields:
+    - correlation_id
+    - session_id
+    - conversation_id
+    - user_id
+    - timestamp
+    - severity
+    - component
+    - operation
+    
+  # Log Sampling (for high-volume logs)
+  sampling:
+    enabled: true
+    rate: 0.1                            # Sample 10% of debug logs
+    burst_limit: 100
+
+# Distributed Tracing
+tracing:
+  enabled: true
+  
+  # Tracing Backend
+  backend: "jaeger"
+  jaeger:
+    endpoint: "http://jaeger:14268/api/traces"
+    sampler_type: "probabilistic"
+    sampler_param: 0.1                   # Sample 10% of traces
+    
+  # Trace Context Propagation
+  context_propagation:
+    headers:
+      - "x-correlation-id"
+      - "x-trace-id"
+      - "x-span-id"
+      
+  # Instrumented Operations
+  instrumented_operations:
+    - "nats_publish"
+    - "nats_subscribe"
+    - "jetstream_publish"
+    - "consumer_ack"
+    - "kv_get"
+    - "kv_put"
+    - "claude_api_request"
+    - "conversation_lifecycle"
+
+# Dashboard Configuration
+dashboards:
+  # Grafana Dashboards
+  grafana:
+    enabled: true
+    datasource: "prometheus"
+    
+    # Dashboard Definitions
+    dashboards:
+      - name: "NATS Overview"
+        file: "dashboards/nats-overview.json"
+        description: "High-level NATS cluster health"
+        
+      - name: "JetStream Streams"
+        file: "dashboards/jetstream-streams.json"
+        description: "JetStream stream metrics and health"
+        
+      - name: "Consumer Performance"
+        file: "dashboards/consumer-performance.json"
+        description: "Consumer lag, throughput, and errors"
+        
+      - name: "Claude API Integration"
+        file: "dashboards/claude-api.json"
+        description: "Claude API interaction metrics"
+        
+      - name: "KV Store Operations"
+        file: "dashboards/kv-operations.json"
+        description: "Key-Value store performance"
+        
+      - name: "Security Monitoring"
+        file: "dashboards/security.json"
+        description: "Authentication and authorization metrics"
+
+# Performance Monitoring
+performance:
+  # Baseline Performance Metrics
+  baselines:
+    message_throughput: 10000            # Messages per second
+    latency_p95: 0.1                     # 95th percentile latency in seconds
+    consumer_lag_max: 1000               # Maximum acceptable consumer lag
+    
+  # Performance Tests
+  tests:
+    - name: "message_throughput_test"
+      description: "Test message throughput under load"
+      frequency: "daily"
+      duration: "10m"
+      target_rate: 5000
+      
+    - name: "consumer_lag_test"
+      description: "Test consumer performance under load"
+      frequency: "weekly"
+      duration: "30m"
+      message_burst: 50000
+      
+  # SLA Monitoring
+  sla:
+    uptime_target: "99.9%"
+    response_time_target: "500ms"
+    error_rate_target: "0.1%"
+    
+    # SLA Reporting
+    reporting:
+      frequency: "monthly"
+      recipients: ["ops-team@company.com"]
+      format: "pdf"
