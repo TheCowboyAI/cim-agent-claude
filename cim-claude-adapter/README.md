@@ -19,6 +19,28 @@ A production-ready, event-driven adapter that integrates Claude AI into CIM (Com
 
 ### Installation
 
+#### Option 1: Nix (Recommended)
+
+1. **Install Nix** (if not already installed):
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+   ```
+
+2. **Clone and build with Nix**:
+   ```bash
+   git clone https://github.com/cowboy-ai/cim-claude-adapter.git
+   cd cim-claude-adapter
+   nix build
+   ```
+
+3. **Run with Nix**:
+   ```bash
+   export CLAUDE_API_KEY="your-claude-api-key"
+   nix run
+   ```
+
+#### Option 2: Cargo
+
 1. **Clone and build**:
    ```bash
    git clone https://github.com/cowboy-ai/cim-claude-adapter.git
@@ -32,25 +54,25 @@ A production-ready, event-driven adapter that integrates Claude AI into CIM (Com
    export NATS_URL="nats://localhost:4222"
    ```
 
-3. **Start NATS with JetStream**:
-   ```bash
-   docker run -d --name nats -p 4222:4222 nats:latest -js
-   ```
-
-4. **Run the adapter**:
+3. **Run the adapter**:
    ```bash
    cargo run --release
    ```
 
-### Docker Quick Start
+#### Prerequisites
 
-```bash
-docker run --name cim-claude-adapter \
-  -e CLAUDE_API_KEY="your-api-key" \
-  -e NATS_URL="nats://host.docker.internal:4222" \
-  --network host \
-  cowboy-ai/cim-claude-adapter:latest
-```
+- **NATS Server** with JetStream using Nix:
+  ```nix
+  # In your NixOS configuration
+  services.nats = {
+    enable = true;
+    jetstream = true;
+    settings = {
+      port = 4222;
+      http_port = 8222;
+    };
+  };
+  ```
 
 ## 🏗️ Architecture
 
@@ -193,6 +215,26 @@ The adapter exposes several monitoring endpoints:
 
 ### Building
 
+#### With Nix (Recommended)
+```bash
+# Enter development shell
+nix develop
+
+# Build the project
+nix build
+
+# Build NixOS container
+nix build .#container
+
+# Run all checks (format, lint, test, etc.)
+nix flake check
+
+# Run specific checks
+nix build .#checks.x86_64-linux.clippy
+nix build .#checks.x86_64-linux.test
+```
+
+#### With Cargo
 ```bash
 # Development build
 cargo build
@@ -227,56 +269,98 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for detailed development guidelines.
 
 ## 🚀 Deployment
 
-### Docker
+### NixOS Service
 
-```dockerfile
-FROM rust:1.70 as builder
-WORKDIR /app
-COPY . .
-RUN cargo build --release
+Add to your NixOS configuration:
 
-FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /app/target/release/cim-claude-adapter /usr/local/bin/
-CMD ["cim-claude-adapter"]
+```nix
+{
+  # Import the flake input
+  inputs.cim-claude-adapter.url = "github:TheCowboyAI/cim-agent-claude?dir=cim-claude-adapter";
+  
+  # In your configuration.nix
+  imports = [ inputs.cim-claude-adapter.nixosModules.default ];
+  
+  services.cim-claude-adapter = {
+    enable = true;
+    claude.apiKey = config.age.secrets.claude-api-key.path; # Using agenix
+    nats.url = "nats://localhost:4222";
+    monitoring.healthPort = 8080;
+    monitoring.metricsPort = 9090;
+    openFirewall = true;
+  };
+  
+  # NATS server
+  services.nats = {
+    enable = true;
+    jetstream = true;
+    settings = {
+      port = 4222;
+      http_port = 8222;
+    };
+  };
+}
 ```
 
-### Kubernetes
+### NixOS Container
 
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: cim-claude-adapter
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: cim-claude-adapter
-  template:
-    metadata:
-      labels:
-        app: cim-claude-adapter
-    spec:
-      containers:
-      - name: adapter
-        image: cowboy-ai/cim-claude-adapter:latest
-        env:
-        - name: CLAUDE_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: claude-secret
-              key: api-key
-        ports:
-        - containerPort: 8080
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8080
-        readinessProbe:
-          httpGet:
-            path: /ready
-            port: 8080
+Deploy as a NixOS container:
+
+```nix
+{
+  containers.cim-claude-adapter = {
+    autoStart = true;
+    privateNetwork = true;
+    hostAddress = "192.168.100.10";
+    localAddress = "192.168.100.11";
+    
+    config = { config, pkgs, ... }: {
+      imports = [ inputs.cim-claude-adapter.nixosModules.default ];
+      
+      services.cim-claude-adapter = {
+        enable = true;
+        claude.apiKey = "/run/secrets/claude-api-key";
+        nats.url = "nats://192.168.100.10:4222"; # Host NATS
+        openFirewall = true;
+      };
+      
+      # Networking
+      networking.firewall.allowedTCPPorts = [ 8080 9090 ];
+      system.stateVersion = "24.05";
+    };
+  };
+}
+```
+
+### Multi-Instance Deployment
+
+Scale across multiple containers:
+
+```nix
+{
+  imports = [ inputs.cim-claude-adapter.nixosModules.default ];
+  
+  # Helper function for creating adapter instances
+  containers = lib.genAttrs [ "primary" "secondary" "tertiary" ] (name: {
+    autoStart = true;
+    privateNetwork = true;
+    hostAddress = "192.168.100.10";
+    localAddress = "192.168.100.${toString (11 + (lib.strings.charToInt (lib.stringAsChars (c: c) name) [0]))}";
+    
+    config = {
+      imports = [ inputs.cim-claude-adapter.nixosModules.default ];
+      services.cim-claude-adapter = {
+        enable = true;
+        claude.apiKey = "/run/secrets/claude-api-key";
+        nats.url = "nats://192.168.100.10:4222";
+        monitoring.healthPort = 8080;
+        monitoring.metricsPort = 9090;
+        stateDir = "/var/lib/cim-claude-adapter-${name}";
+      };
+      system.stateVersion = "24.05";
+    };
+  });
+}
 ```
 
 ## 🤝 Contributing

@@ -3,8 +3,8 @@
  * All rights reserved.
  */
 
-use serde::{Deserialize, Serialize};
 use crate::domain::value_objects::*;
+use serde::{Deserialize, Serialize};
 
 /// Domain commands (imperative, expressing intent)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -49,7 +49,7 @@ impl Command {
             timestamp: chrono::Utc::now(),
         }
     }
-    
+
     /// Get correlation ID from command
     pub fn correlation_id(&self) -> &CorrelationId {
         match self {
@@ -58,13 +58,17 @@ impl Command {
             Command::EndConversation { correlation_id, .. } => correlation_id,
         }
     }
-    
+
     /// Get conversation ID if command relates to existing conversation
     pub fn conversation_id(&self) -> Option<&ConversationId> {
         match self {
             Command::StartConversation { .. } => None,
-            Command::SendPrompt { conversation_id, .. } => Some(conversation_id),
-            Command::EndConversation { conversation_id, .. } => Some(conversation_id),
+            Command::SendPrompt {
+                conversation_id, ..
+            } => Some(conversation_id),
+            Command::EndConversation {
+                conversation_id, ..
+            } => Some(conversation_id),
         }
     }
 }
@@ -75,13 +79,13 @@ pub use crate::domain::events::ConversationEndReason;
 /// Command validation trait
 pub trait CommandValidator {
     type Error;
-    
+
     fn validate(&self) -> Result<(), Self::Error>;
 }
 
 impl CommandValidator for Command {
     type Error = String;
-    
+
     fn validate(&self) -> Result<(), Self::Error> {
         match self {
             Command::StartConversation { initial_prompt, .. } => {
@@ -89,13 +93,13 @@ impl CommandValidator for Command {
                     return Err("Initial prompt cannot be empty".to_string());
                 }
                 Ok(())
-            },
+            }
             Command::SendPrompt { prompt, .. } => {
                 if prompt.character_count() == 0 {
                     return Err("Prompt cannot be empty".to_string());
                 }
                 Ok(())
-            },
+            }
             Command::EndConversation { .. } => Ok(()),
         }
     }
@@ -104,7 +108,7 @@ impl CommandValidator for Command {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_command_envelope_creation() {
         let command = Command::StartConversation {
@@ -113,14 +117,14 @@ mod tests {
             context: ConversationContext::default(),
             correlation_id: CorrelationId::new(),
         };
-        
+
         let correlation_id = CorrelationId::new();
         let envelope = command.with_metadata(correlation_id);
-        
+
         assert_eq!(envelope.correlation_id, correlation_id);
         assert!(!envelope.command_id.is_nil());
     }
-    
+
     #[test]
     fn test_command_validation() {
         // Valid command
@@ -131,7 +135,7 @@ mod tests {
             correlation_id: CorrelationId::new(),
         };
         assert!(valid_command.validate().is_ok());
-        
+
         // Invalid command with empty prompt
         let invalid_command = Command::SendPrompt {
             conversation_id: ConversationId::new(),
@@ -143,7 +147,7 @@ mod tests {
         };
         // Note: This test is illustrative - in reality, Prompt::new would fail first
     }
-    
+
     #[test]
     fn test_correlation_id_extraction() {
         let correlation_id = CorrelationId::new();
@@ -152,10 +156,10 @@ mod tests {
             prompt: Prompt::new("Test prompt".to_string()).unwrap(),
             correlation_id: correlation_id.clone(),
         };
-        
+
         assert_eq!(command.correlation_id(), &correlation_id);
     }
-    
+
     #[test]
     fn test_conversation_id_extraction() {
         let conversation_id = ConversationId::new();
@@ -164,9 +168,9 @@ mod tests {
             prompt: Prompt::new("Test prompt".to_string()).unwrap(),
             correlation_id: CorrelationId::new(),
         };
-        
+
         assert_eq!(command.conversation_id(), Some(&conversation_id));
-        
+
         // StartConversation should not have conversation_id
         let start_command = Command::StartConversation {
             session_id: SessionId::new(),
@@ -174,7 +178,7 @@ mod tests {
             context: ConversationContext::default(),
             correlation_id: CorrelationId::new(),
         };
-        
+
         assert_eq!(start_command.conversation_id(), None);
     }
 }

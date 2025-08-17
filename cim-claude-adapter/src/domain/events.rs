@@ -3,9 +3,9 @@
  * All rights reserved.
  */
 
+use crate::domain::value_objects::*;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use crate::domain::value_objects::*;
 
 /// Domain events for the Claude API adapter (past tense, business-focused)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -80,16 +80,28 @@ impl DomainEvent {
             version: 1,
         }
     }
-    
+
     /// Get conversation ID from any domain event
     pub fn conversation_id(&self) -> &ConversationId {
         match self {
-            DomainEvent::ConversationStarted { conversation_id, .. } => conversation_id,
-            DomainEvent::PromptSent { conversation_id, .. } => conversation_id,
-            DomainEvent::ResponseReceived { conversation_id, .. } => conversation_id,
-            DomainEvent::ConversationEnded { conversation_id, .. } => conversation_id,
-            DomainEvent::RateLimitExceeded { conversation_id, .. } => conversation_id,
-            DomainEvent::ClaudeApiErrorOccurred { conversation_id, .. } => conversation_id,
+            DomainEvent::ConversationStarted {
+                conversation_id, ..
+            } => conversation_id,
+            DomainEvent::PromptSent {
+                conversation_id, ..
+            } => conversation_id,
+            DomainEvent::ResponseReceived {
+                conversation_id, ..
+            } => conversation_id,
+            DomainEvent::ConversationEnded {
+                conversation_id, ..
+            } => conversation_id,
+            DomainEvent::RateLimitExceeded {
+                conversation_id, ..
+            } => conversation_id,
+            DomainEvent::ClaudeApiErrorOccurred {
+                conversation_id, ..
+            } => conversation_id,
         }
     }
 }
@@ -127,7 +139,7 @@ pub enum ClaudeApiErrorType {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_event_envelope_creation() {
         let event = DomainEvent::ConversationStarted {
@@ -136,16 +148,16 @@ mod tests {
             initial_prompt: Prompt::new("Hello Claude".to_string()).unwrap(),
             context: ConversationContext::default(),
         };
-        
+
         let correlation_id = CorrelationId::new();
         let envelope = event.with_metadata(correlation_id, None);
-        
+
         assert_eq!(envelope.correlation_id, correlation_id);
         assert!(!envelope.event_id.is_nil());
         assert!(!envelope.causation_id.is_nil());
         assert_eq!(envelope.version, 1);
     }
-    
+
     #[test]
     fn test_conversation_id_extraction() {
         let conversation_id = ConversationId::new();
@@ -155,7 +167,7 @@ mod tests {
             sequence_number: 1,
             claude_request_metadata: ClaudeRequestMetadata::default(),
         };
-        
+
         assert_eq!(event.conversation_id(), &conversation_id);
     }
 }
