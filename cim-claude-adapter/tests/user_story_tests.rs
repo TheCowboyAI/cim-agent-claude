@@ -15,7 +15,7 @@ use cim_claude_adapter::domain::{
     claude_queries::*,
     value_objects::*,
 };
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use serde_json;
 use std::collections::HashMap;
 use tokio;
@@ -143,7 +143,7 @@ mod core_claude_api_tests {
             received_at: Utc::now(),
         };
         
-        let chunk2 = ClaudeApiEvent::StreamingChunkReceived {
+        let _chunk2 = ClaudeApiEvent::StreamingChunkReceived {
             command_id: command_id.clone(),
             conversation_id: conversation_id.clone(),
             chunk_sequence: 2,

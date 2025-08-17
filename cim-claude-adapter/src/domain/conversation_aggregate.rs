@@ -410,14 +410,15 @@ mod tests {
         aggregate.apply_response(response, 1000).unwrap();
 
         // Now send another prompt
+        let prompt_correlation_id = CorrelationId::new();
         let send_prompt_cmd = Command::SendPrompt {
             conversation_id: aggregate.id().clone(),
             prompt: Prompt::new("What's the weather?".to_string()).unwrap(),
-            correlation_id: CorrelationId::new(),
+            correlation_id: prompt_correlation_id.clone(),
         };
 
         let events = aggregate
-            .handle_command(send_prompt_cmd, CorrelationId::new())
+            .handle_command(send_prompt_cmd, prompt_correlation_id)
             .unwrap();
 
         assert_eq!(aggregate.state, ConversationState::Processing);
@@ -443,13 +444,14 @@ mod tests {
         }
 
         // Try to send another prompt
+        let fail_correlation_id = CorrelationId::new();
         let send_prompt_cmd = Command::SendPrompt {
             conversation_id: aggregate.id().clone(),
             prompt: Prompt::new("This should fail".to_string()).unwrap(),
-            correlation_id: CorrelationId::new(),
+            correlation_id: fail_correlation_id.clone(),
         };
 
-        let result = aggregate.handle_command(send_prompt_cmd, CorrelationId::new());
+        let result = aggregate.handle_command(send_prompt_cmd, fail_correlation_id);
         assert!(matches!(result, Err(DomainError::RateLimitExceeded)));
     }
 

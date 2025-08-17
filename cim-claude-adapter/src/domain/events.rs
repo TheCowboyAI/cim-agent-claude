@@ -41,7 +41,7 @@ pub enum DomainEvent {
     /// Rate limit was exceeded for a conversation
     RateLimitExceeded {
         conversation_id: ConversationId,
-        limit_type: RateLimitType,
+        limit_type: ConversationRateLimitType,
         retry_after_seconds: u32,
     },
     /// Error occurred during Claude API communication
@@ -117,9 +117,9 @@ pub enum ConversationEndReason {
     InvalidState,
 }
 
-/// Rate limit types
+/// Rate limit types for conversations
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum RateLimitType {
+pub enum ConversationRateLimitType {
     PromptsPerMinute,
     TokensPerHour,
     ConcurrentRequests,

@@ -137,15 +137,21 @@ mod tests {
         assert!(valid_command.validate().is_ok());
 
         // Invalid command with empty prompt
-        let _invalid_command = Command::SendPrompt {
+        // Test that prompt validation works correctly
+        let invalid_prompt_result = Prompt::new("".to_string());
+        assert!(invalid_prompt_result.is_err());
+        
+        // Test valid command creation
+        let valid_command = Command::SendPrompt {
             conversation_id: ConversationId::new(),
-            prompt: Prompt::new("".to_string()).unwrap_or_else(|_| {
-                // This shouldn't happen due to Prompt validation, but for test purposes
-                panic!("Cannot create empty prompt")
-            }),
+            prompt: Prompt::new("Valid test prompt".to_string()).unwrap(),
             correlation_id: CorrelationId::new(),
         };
-        // Note: This test is illustrative - in reality, Prompt::new would fail first
+        
+        // Verify command properties
+        if let Command::SendPrompt { prompt, .. } = &valid_command {
+            assert_eq!(prompt.content(), "Valid test prompt");
+        }
     }
 
     #[test]

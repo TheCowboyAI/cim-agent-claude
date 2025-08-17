@@ -77,7 +77,7 @@ impl ToolSubject {
         }
         
         // Validate NATS subject format
-        if !subject.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '*' || c == '>') {
+        if !subject.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '*' || c == '>' || c == '-' || c == '_') {
             return Err("Invalid NATS subject format".to_string());
         }
         

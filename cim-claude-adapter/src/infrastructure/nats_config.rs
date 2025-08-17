@@ -7,7 +7,6 @@
 //! 
 //! Defines all streams, object stores, and KV stores using the CIM subject algebra
 
-use crate::infrastructure::subjects::*;
 use serde::{Deserialize, Serialize};
 
 /// Complete NATS JetStream configuration for Claude adapter

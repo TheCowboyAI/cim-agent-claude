@@ -264,7 +264,7 @@ pub enum ConfigurationCommand {
     /// Export current configuration
     ExportConfiguration {
         configuration_id: ConfigurationId,
-        export_format: ExportFormat,
+        export_format: ConfigurationExportFormat,
         export_scope: ExportScope,
         correlation_id: CorrelationId,
     },
@@ -308,7 +308,7 @@ pub enum MergeStrategy {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum ExportFormat {
+pub enum ConfigurationExportFormat {
     Json,
     Yaml,
     Toml,
@@ -377,7 +377,7 @@ pub enum ConfigurationEvent {
     /// Configuration was exported
     ConfigurationExported {
         configuration_id: ConfigurationId,
-        export_format: ExportFormat,
+        export_format: ConfigurationExportFormat,
         export_scope: ExportScope,
         export_location: String,
         exported_by: SessionId,

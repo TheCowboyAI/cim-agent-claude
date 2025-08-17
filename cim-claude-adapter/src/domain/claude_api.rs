@@ -12,7 +12,6 @@
 use crate::domain::value_objects::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use uuid::Uuid;
 
 // ============================================================================
 // CLAUDE API VALUE OBJECTS - All API Parameters and Data Types
