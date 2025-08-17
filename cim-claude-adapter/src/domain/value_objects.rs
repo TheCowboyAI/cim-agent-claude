@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 /// Strong type for Event IDs
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct EventId(Uuid);
 
 impl EventId {
@@ -37,7 +37,7 @@ impl Default for EventId {
 }
 
 /// Strong type for Conversation IDs
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct ConversationId(Uuid);
 
 impl ConversationId {
@@ -60,8 +60,14 @@ impl Default for ConversationId {
     }
 }
 
+impl std::fmt::Display for ConversationId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// Strong type for Session IDs
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct SessionId(Uuid);
 
 impl SessionId {
@@ -85,7 +91,7 @@ impl Default for SessionId {
 }
 
 /// Strong type for Correlation IDs (CIM standard)
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct CorrelationId(Uuid);
 
 impl CorrelationId {
@@ -105,6 +111,12 @@ impl CorrelationId {
 impl Default for CorrelationId {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl std::fmt::Display for CorrelationId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 

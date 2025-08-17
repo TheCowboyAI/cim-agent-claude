@@ -12,6 +12,44 @@ The CIM Claude Adapter follows **pure event sourcing** principles where **EVERYT
 
 ## Subject Separation
 
+```mermaid
+graph TB
+    %% High contrast styling
+    classDef primary fill:#FF6B6B,stroke:#2D3436,stroke-width:4px,color:#FFFFFF
+    classDef secondary fill:#4ECDC4,stroke:#2D3436,stroke-width:3px,color:#2D3436
+    classDef decision fill:#FFE66D,stroke:#2D3436,stroke-width:3px,color:#2D3436
+    classDef result fill:#95E1D3,stroke:#2D3436,stroke-width:2px,color:#2D3436
+    classDef start fill:#2D3436,stroke:#FFFFFF,stroke-width:2px,color:#FFFFFF
+
+    %% Core Domains
+    ClaudeAPI["1. Claude API Commands<br/>cim.claude.conv.cmd.*"]:::primary
+    Config["2. Configuration Management<br/>cim.claude.config.cmd.*"]:::primary
+    Tools["3. NATS-Connected Tools<br/>cim.core.event.cmd.*"]:::primary
+    UserControl["4. Conversation Control<br/>cim.user.conv.cmd.*"]:::primary
+
+    %% Claude API Subject Patterns
+    ClaudeAPI --> StartConv["cim.claude.conv.cmd.start.{conv_id}"]:::secondary
+    ClaudeAPI --> SendMsg["cim.claude.conv.cmd.send.{conv_id}"]:::secondary
+    ClaudeAPI --> EndConv["cim.claude.conv.cmd.end.{conv_id}"]:::secondary
+
+    %% Configuration Subject Patterns
+    Config --> UpdatePrompt["cim.claude.config.cmd.update_system_prompt.{config_id}"]:::decision
+    Config --> UpdateModel["cim.claude.config.cmd.update_model_params.{config_id}"]:::decision
+    Config --> UpdateSettings["cim.claude.config.cmd.update_conversation_settings.{config_id}"]:::decision
+
+    %% Tools Subject Patterns
+    Tools --> RegisterTool["cim.core.event.cmd.register_tool.{tool_id}"]:::result
+    Tools --> InvokeTool["cim.core.event.cmd.invoke_tool.{tool_id}"]:::result
+    Tools --> HealthCheck["cim.core.event.cmd.health_check_tool.{tool_id}"]:::result
+
+    %% User Control Subject Patterns
+    UserControl --> PauseConv["cim.user.conv.cmd.pause.{conv_id}"]:::start
+    UserControl --> ArchiveConv["cim.user.conv.cmd.archive.{conv_id}"]:::start
+    UserControl --> ForkConv["cim.user.conv.cmd.fork.{conv_id}"]:::start
+```
+
+## Subject Separation
+
 ### 1. Claude API Commands (Actual Claude Interaction)
 **Subject Pattern**: `cim.claude.conv.cmd.{command}.{conversation_id}`
 - `cim.claude.conv.cmd.start.{conv_id}` - Start new conversation
@@ -58,6 +96,75 @@ The CIM Claude Adapter follows **pure event sourcing** principles where **EVERYT
 
 ## Message Flow Patterns
 
+```mermaid
+sequenceDiagram
+    %% High contrast styling
+    participant User as User
+    participant ConfigCmd as Configuration<br/>Command Handler
+    participant NATS as NATS<br/>JetStream
+    participant EventStore as Event<br/>Store
+    participant KVStore as KV<br/>Store
+
+    Note over User, KVStore: 1. Configuration Update Flow
+    User->>ConfigCmd: Update System Prompt
+    ConfigCmd->>NATS: Publish ConfigCommand
+    NATS->>ConfigCmd: Command Received
+    ConfigCmd->>ConfigCmd: Process Command
+    ConfigCmd->>NATS: Publish ConfigEvent
+    ConfigCmd->>KVStore: Update Active Config
+    NATS->>EventStore: Store Event
+    EventStore-->>User: Configuration Updated
+```
+
+```mermaid
+sequenceDiagram
+    %% High contrast styling
+    participant User as User
+    participant ClaudeCmd as Claude API<br/>Command Handler
+    participant NATS as NATS<br/>JetStream
+    participant ClaudeAPI as Claude<br/>API
+    participant EventStore as Event<br/>Store
+
+    Note over User, EventStore: 2. Claude API Interaction Flow
+    User->>ClaudeCmd: Send Prompt
+    ClaudeCmd->>NATS: Publish ClaudeCommand
+    NATS->>ClaudeCmd: Command Received
+    ClaudeCmd->>ClaudeAPI: HTTP Request
+    ClaudeAPI->>ClaudeCmd: API Response
+    ClaudeCmd->>NATS: Publish ClaudeEvent
+    NATS->>EventStore: Store Event
+    EventStore-->>User: Response Available
+```
+
+```mermaid
+sequenceDiagram
+    %% High contrast styling
+    participant MCPTool as MCP<br/>Tool
+    participant ToolRegistry as Tool<br/>Registry
+    participant NATS as NATS<br/>JetStream
+    participant Claude as Claude<br/>API Handler
+    participant EventStore as Event<br/>Store
+
+    Note over MCPTool, EventStore: 3. MCP Tool Integration Flow
+    
+    Note over MCPTool, EventStore: Tool Registration
+    MCPTool->>NATS: Publish ToolCommand<br/>(register_tool)
+    NATS->>ToolRegistry: Command Received
+    ToolRegistry->>ToolRegistry: Register Tool
+    ToolRegistry->>NATS: Publish ToolEvent<br/>(tool_registered)
+    NATS->>EventStore: Store Event
+
+    Note over MCPTool, EventStore: Tool Invocation
+    Claude->>NATS: Publish ToolCommand<br/>(invoke_tool)
+    NATS->>MCPTool: Forward Request
+    MCPTool->>NATS: Tool Response
+    NATS->>Claude: Forward Response
+    Claude->>NATS: Publish ToolEvent<br/>(tool_completed)
+    NATS->>EventStore: Store Event
+```
+
+## Message Flow Patterns
+
 ### 1. Configuration Update Flow
 ```
 User Request → ConfigCommand → NATS → CommandProcessor → ConfigEvent → NATS → EventStore
@@ -97,6 +204,101 @@ Claude → ToolCommand → NATS → MCP Tool (via NATS) → ToolEvent → NATS �
 - **ConversationControlCommand**: Pause, resume, archive, fork conversations
 - **ConversationControlEvent**: Paused, archived, forked, merged
 - **ConversationMetadata**: Tags, priority, status, branching info
+
+## NATS Infrastructure
+
+```mermaid
+graph TB
+    %% High contrast styling
+    classDef primary fill:#FF6B6B,stroke:#2D3436,stroke-width:4px,color:#FFFFFF
+    classDef secondary fill:#4ECDC4,stroke:#2D3436,stroke-width:3px,color:#2D3436
+    classDef decision fill:#FFE66D,stroke:#2D3436,stroke-width:3px,color:#2D3436
+    classDef result fill:#95E1D3,stroke:#2D3436,stroke-width:2px,color:#2D3436
+    classDef storage fill:#A8E6CF,stroke:#2D3436,stroke-width:2px,color:#2D3436
+
+    %% NATS Core
+    NATS["NATS Server<br/>JetStream Enabled"]:::primary
+
+    %% Streams
+    subgraph Streams ["JetStream Streams"]
+        ClaudeCMD["CIM_CLAUDE_CONV_CMD<br/>Claude API Commands"]:::secondary
+        ClaudeEVT["CIM_CLAUDE_CONV_EVT<br/>Claude API Events"]:::secondary
+        ConfigCMD["CIM_CLAUDE_CONFIG_CMD<br/>Configuration Commands"]:::decision
+        ConfigEVT["CIM_CLAUDE_CONFIG_EVT<br/>Configuration Events"]:::decision
+        ToolsCMD["CIM_CORE_TOOLS_CMD<br/>NATS Tool Commands"]:::result
+        ToolsEVT["CIM_CORE_TOOLS_EVT<br/>NATS Tool Events"]:::result
+        UserCMD["CIM_USER_CONV_CMD<br/>User Control Commands"]:::storage
+        UserEVT["CIM_USER_CONV_EVT<br/>User Control Events"]:::storage
+        QueryAll["CIM_CLAUDE_QUERY_ALL<br/>Unified Query Requests"]:::primary
+    end
+
+    %% KV Stores
+    subgraph KVStores ["Key-Value Stores"]
+        ConvKV["CIM_CLAUDE_CONV_KV<br/>Conversation Metadata"]:::secondary
+        ConfigKV["CIM_CLAUDE_CONFIG_ACTIVE_KV<br/>Active Configuration"]:::decision
+        ToolsKV["CIM_CORE_TOOLS_REGISTRY_KV<br/>Tool Registry"]:::result
+        UserKV["CIM_USER_CONV_CONTROL_KV<br/>Conversation Control"]:::storage
+        AttachKV["CIM_CLAUDE_ATTACH_KV<br/>Attachment Metadata"]:::primary
+    end
+
+    %% Object Stores
+    subgraph ObjectStores ["Object Stores"]
+        ImgStore["CIM_CLAUDE_ATTACH_OBJ_IMG<br/>Images"]:::secondary
+        DocStore["CIM_CLAUDE_ATTACH_OBJ_DOC<br/>Documents"]:::decision
+        CodeStore["CIM_CLAUDE_ATTACH_OBJ_CODE<br/>Code Files"]:::result
+        AudioStore["CIM_CLAUDE_ATTACH_OBJ_AUDIO<br/>Audio"]:::storage
+        VideoStore["CIM_CLAUDE_ATTACH_OBJ_VIDEO<br/>Video"]:::primary
+    end
+
+    %% Connections
+    NATS --> Streams
+    NATS --> KVStores
+    NATS --> ObjectStores
+```
+
+```mermaid
+graph LR
+    %% High contrast styling
+    classDef primary fill:#FF6B6B,stroke:#2D3436,stroke-width:4px,color:#FFFFFF
+    classDef secondary fill:#4ECDC4,stroke:#2D3436,stroke-width:3px,color:#2D3436
+    classDef decision fill:#FFE66D,stroke:#2D3436,stroke-width:3px,color:#2D3436
+    classDef result fill:#95E1D3,stroke:#2D3436,stroke-width:2px,color:#2D3436
+
+    %% Domain Models
+    subgraph ConfigDomain ["Configuration Domain"]
+        ConfigCmd["ConfigurationCommand"]:::decision
+        ConfigEvt["ConfigurationEvent"]:::decision
+        ConfigAgg["ConfigurationAggregate"]:::decision
+    end
+
+    subgraph ToolsDomain ["MCP Tools Domain"]
+        ToolCmd["ToolCommand"]:::result
+        ToolEvt["ToolEvent"]:::result
+        ToolReg["ToolRegistry"]:::result
+    end
+
+    subgraph ConvDomain ["Conversation Control Domain"]
+        ConvCmd["ConversationControlCommand"]:::secondary
+        ConvEvt["ConversationControlEvent"]:::secondary
+        ConvMeta["ConversationMetadata"]:::secondary
+    end
+
+    subgraph ClaudeDomain ["Claude API Domain"]
+        ClaudeReq["ClaudeApiRequest"]:::primary
+        ClaudeResp["ClaudeApiResponse"]:::primary
+        ClaudeSession["ClaudeApiSession"]:::primary
+    end
+
+    %% Relationships
+    ConfigCmd --> ConfigEvt
+    ConfigEvt --> ConfigAgg
+    ToolCmd --> ToolEvt
+    ToolEvt --> ToolReg
+    ConvCmd --> ConvEvt
+    ConvEvt --> ConvMeta
+    ClaudeReq --> ClaudeResp
+    ClaudeResp --> ClaudeSession
+```
 
 ## NATS Infrastructure
 
