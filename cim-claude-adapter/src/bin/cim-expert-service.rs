@@ -176,8 +176,9 @@ async fn main() -> Result<()> {
 
     info!("🚀 Starting CIM Expert Service");
 
-    // Load configuration
+    // Load configuration - check multiple possible paths
     let config_path = std::env::var("CIM_EXPERT_CONFIG")
+        .or_else(|_| std::env::var("CONFIG_FILE"))
         .unwrap_or_else(|_| "cim-expert-config.toml".to_string());
     let config = load_config(&config_path).await
         .context("Failed to load service configuration")?;

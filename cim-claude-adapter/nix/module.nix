@@ -290,7 +290,7 @@ in {
         Type = "exec";
         User = cfg.user;
         Group = cfg.group;
-        ExecStart = "${cfg.package}/bin/cim-claude-adapter";
+        ExecStart = "${cfg.package}/bin/cim-expert-service";
         ExecReload = "${pkgs.coreutils}/bin/kill -HUP $MAINPID";
         
         # Security settings

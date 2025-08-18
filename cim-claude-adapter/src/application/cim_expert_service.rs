@@ -343,7 +343,7 @@ Communication style:
         
         // Execute the request using Claude client
         let response = self._claude_client.send_message(request).await
-            .context("Failed to execute Claude API request")?;
+            .with_context(|| format!("Failed to execute Claude API request for topic: {:?}", question.chars().take(50).collect::<String>()))?;
         
         // Extract text content from response
         let content = response.content.iter()

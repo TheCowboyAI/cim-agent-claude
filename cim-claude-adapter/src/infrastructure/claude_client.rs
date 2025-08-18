@@ -38,9 +38,9 @@ impl Default for ClaudeClientConfig {
         Self {
             api_key: std::env::var("CLAUDE_API_KEY").unwrap_or_default(),
             base_url: "https://api.anthropic.com".to_string(),
-            timeout: Duration::from_secs(30),
+            timeout: Duration::from_secs(60),  // Increased timeout for Claude API
             max_retries: 3,
-            retry_delay: Duration::from_secs(1),
+            retry_delay: Duration::from_secs(2),  // Longer retry delay
             user_agent: "cim-claude-adapter/0.1.0".to_string(),
         }
     }
