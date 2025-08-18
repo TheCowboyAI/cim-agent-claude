@@ -1,0 +1,29 @@
+# CIM Expert Service Configuration
+
+[service]
+bind_address = "0.0.0.0"
+port = 8080
+_log_level = "info"
+_max_concurrent_conversations = 100
+
+[claude]
+_max_tokens = 4000
+_temperature = 0.7
+timeout_seconds = 60
+max_retries = 3
+
+[nats]
+servers = ["nats://localhost:4222"]
+connection_timeout_seconds = 10
+request_timeout_seconds = 30
+max_reconnect_attempts = 5
+
+[_expert]
+_enable_conversation_history = true
+_max_conversation_length = 100
+_enable_audit_logging = true
+
+[web_interface]
+enable = true
+static_files_path = "/git/thecowboyai/cim-agent-claude/cim-claude-adapter/static"
+enable_api_docs = true

@@ -317,10 +317,45 @@ Communication style:
     }
     
     /// Get response from Claude API
-    async fn get_claude_response(&self, _system_prompt: &str, question: &str) -> Result<String> {
-        // This would use the actual Claude client implementation
-        // For now, we'll return a placeholder
-        Ok(format!("Comprehensive CIM Expert response to: {}", question))
+    async fn get_claude_response(&self, system_prompt: &str, question: &str) -> Result<String> {
+        use crate::domain::claude_api::*;
+        
+        // Create Claude API request
+        let messages = vec![ClaudeMessage {
+            role: MessageRole::User,
+            content: MessageContent::text(question.to_string()),
+        }];
+        
+        let request = ClaudeApiRequest {
+            model: ClaudeModel::Claude4Sonnet20250514,
+            messages,
+            max_tokens: MaxTokens::new(4000)
+                .map_err(|e| anyhow::anyhow!("Invalid max_tokens: {}", e))?,
+            system: Some(ClaudeSystemPrompt::new(system_prompt.to_string())
+                .map_err(|e| anyhow::anyhow!("Invalid system prompt: {}", e))?),
+            temperature: Some(Temperature::new(0.7)
+                .map_err(|e| anyhow::anyhow!("Invalid temperature: {}", e))?),
+            stop_sequences: None,
+            tools: None,
+            stream: Some(false),
+            metadata: None,
+        };
+        
+        // Execute the request using Claude client
+        let response = self._claude_client.send_message(request).await
+            .context("Failed to execute Claude API request")?;
+        
+        // Extract text content from response
+        let content = response.content.iter()
+            .find_map(|content| {
+                match content {
+                    ContentBlock::Text { text } => Some(text.clone()),
+                    _ => None,
+                }
+            })
+            .unwrap_or_else(|| "No text response from Claude".to_string());
+        
+        Ok(content)
     }
     
     /// Structure the Claude response into a CimExpertResponse

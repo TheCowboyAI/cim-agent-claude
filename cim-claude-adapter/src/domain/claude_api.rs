@@ -30,6 +30,13 @@ pub enum ClaudeModel {
     Claude3Sonnet20240229,
     #[serde(rename = "claude-3-haiku-20240307")]
     Claude3Haiku20240307,
+    // Claude v4 series models
+    #[serde(rename = "claude-4-sonnet-20250514")]
+    Claude4Sonnet20250514,
+    #[serde(rename = "claude-4-opus-20250514")]
+    Claude4Opus20250514,
+    #[serde(rename = "claude-4-haiku-20250514")]
+    Claude4Haiku20250514,
 }
 
 impl ClaudeModel {
@@ -40,6 +47,9 @@ impl ClaudeModel {
             ClaudeModel::Claude3Opus20240229 => "claude-3-opus-20240229",
             ClaudeModel::Claude3Sonnet20240229 => "claude-3-sonnet-20240229",
             ClaudeModel::Claude3Haiku20240307 => "claude-3-haiku-20240307",
+            ClaudeModel::Claude4Sonnet20250514 => "claude-4-sonnet-20250514",
+            ClaudeModel::Claude4Opus20250514 => "claude-4-opus-20250514",
+            ClaudeModel::Claude4Haiku20250514 => "claude-4-haiku-20250514",
         }
     }
     
@@ -49,6 +59,9 @@ impl ClaudeModel {
             ClaudeModel::Claude3Opus20240229 => 200_000,
             ClaudeModel::Claude3Sonnet20240229 => 200_000,
             ClaudeModel::Claude3Haiku20240307 => 200_000,
+            ClaudeModel::Claude4Sonnet20250514 => 400_000,
+            ClaudeModel::Claude4Opus20250514 => 400_000,
+            ClaudeModel::Claude4Haiku20250514 => 400_000,
         }
     }
     
@@ -58,13 +71,16 @@ impl ClaudeModel {
             ClaudeModel::Claude3Opus20240229 => 200_000,
             ClaudeModel::Claude3Sonnet20240229 => 200_000,
             ClaudeModel::Claude3Haiku20240307 => 200_000,
+            ClaudeModel::Claude4Sonnet20250514 => 400_000,
+            ClaudeModel::Claude4Opus20250514 => 400_000,
+            ClaudeModel::Claude4Haiku20250514 => 400_000,
         }
     }
 }
 
 impl Default for ClaudeModel {
     fn default() -> Self {
-        ClaudeModel::Claude35Sonnet20241022
+        ClaudeModel::Claude4Sonnet20250514
     }
 }
 
@@ -331,6 +347,9 @@ impl ClaudeUsage {
             ClaudeModel::Claude3Opus20240229 => (15.0, 75.0),
             ClaudeModel::Claude3Sonnet20240229 => (3.0, 15.0),
             ClaudeModel::Claude3Haiku20240307 => (0.25, 1.25),
+            ClaudeModel::Claude4Sonnet20250514 => (6.0, 30.0),
+            ClaudeModel::Claude4Opus20250514 => (30.0, 150.0),
+            ClaudeModel::Claude4Haiku20250514 => (0.5, 2.5),
         };
         
         let input_cost = (self.input_tokens as f64 / 1_000_000.0) * input_rate;
