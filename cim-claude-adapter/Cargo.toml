@@ -8,6 +8,7 @@ description = "CIM hexagonal adapter for Claude API to NATS translation"
 # Core async runtime
 tokio = { version = "1.0", features = ["full"] }
 async-trait = "0.1"
+futures = "0.3"
 
 # NATS integration
 async-nats = "0.33"
@@ -15,14 +16,15 @@ bytes = "1.0"
 
 # HTTP and Claude API client
 reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
-axum = { version = "0.7", features = ["json"] }
+axum = { version = "0.7", features = ["json", "ws"] }
 tower = { version = "0.4", features = ["timeout", "limit"] }
-tower-http = { version = "0.5", features = ["cors", "trace"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "fs"] }
 
 # Serialization and data handling
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
+toml = "0.8"
 uuid = { version = "1.0", features = ["v4", "serde"] }
 
 # Time and utilities

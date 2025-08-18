@@ -3,5 +3,10 @@
  * All rights reserved.
  */
 
-// Application module
-// Business logic and use cases
+//! Application Services Layer
+//! 
+//! High-level orchestration services that coordinate domain logic with infrastructure.
+//! Implements the hexagonal architecture application services pattern.
+
+pub mod claude_adapter_service;
+pub mod cim_expert_service;

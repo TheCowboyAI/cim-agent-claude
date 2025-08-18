@@ -183,10 +183,40 @@ nats sub 'cim.claude.events.response_received'
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `CLAUDE_API_KEY` | ✅ | - | Claude API authentication key |
+| `CLAUDE_API_KEY` | ✅ | - | Claude API key (format: `sk-ant-api03-...`) |
 | `NATS_URL` | ❌ | `nats://localhost:4222` | NATS server URL |
 | `LOG_LEVEL` | ❌ | `info` | Logging level |
 | `HEALTH_CHECK_PORT` | ❌ | `8080` | Health check port |
+
+### 🔑 Authentication Setup
+
+The adapter uses Anthropic's standard authentication with `x-api-key` header:
+
+```bash
+export CLAUDE_API_KEY=sk-ant-api03-your-actual-key-here
+```
+
+Headers sent to Claude API:
+- `x-api-key: [your-api-key]`
+- `anthropic-version: 2023-06-01` (hard-locked via Nix flake)
+- `content-type: application/json`
+
+### 🔒 Version Management
+
+The Anthropic API version is **hard-locked in the Nix flake** for consistency:
+
+```nix
+# In flake.nix - single source of truth
+anthropicApiVersion = "2023-06-01";
+```
+
+**Benefits**:
+- ✅ **Reproducible builds** - same API version across all environments
+- ✅ **No version drift** - prevents accidental updates breaking compatibility  
+- ✅ **Centralized control** - single place to manage API version upgrades
+- ✅ **Build-time injection** - version compiled into binary for runtime consistency
+
+**To update the API version**: Edit `anthropicApiVersion` in `flake.nix` and rebuild.
 
 See the [User Guide](./docs/USER_GUIDE.md) for complete configuration options.
 

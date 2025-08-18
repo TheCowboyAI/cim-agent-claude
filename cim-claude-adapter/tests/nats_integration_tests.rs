@@ -616,7 +616,14 @@ mod tool_management_flows {
         // Verify message sequence
         let subjects: Vec<&str> = nats_client.published_messages
             .iter()
-            .map(|msg| msg.subject.split('.').last().unwrap_or(&msg.subject))
+            .map(|msg| {
+                let parts: Vec<&str> = msg.subject.split('.').collect();
+                if parts.len() > 1 {
+                    parts[parts.len() - 2] // Second to last part (before conversation_id)
+                } else {
+                    &msg.subject
+                }
+            })
             .collect();
         
         // Expected sequence pattern (last part of subjects)
@@ -739,8 +746,11 @@ mod query_pattern_flows {
         let conv_response_payload = serde_json::to_vec(&conv_response).unwrap();
         nats_client.publish(&conv_response_subject, &conv_response_payload).await.unwrap();
         
-        // Verify query flow
-        let conv_queries = nats_client.get_messages_for_subject("cim.claude.queries.conversation");
+        // Verify query flow (exclude responses)
+        let conv_queries: Vec<&NatsMessage> = nats_client.published_messages
+            .iter()
+            .filter(|msg| msg.subject.starts_with("cim.claude.queries.conversation") && !msg.subject.contains(".response"))
+            .collect();
         assert_eq!(conv_queries.len(), 1);
         
         let usage_queries = nats_client.get_messages_for_subject("cim.claude.queries.usage_statistics");
@@ -752,7 +762,10 @@ mod query_pattern_flows {
         let perf_queries = nats_client.get_messages_for_subject("cim.claude.queries.performance_metrics");
         assert_eq!(perf_queries.len(), 1);
         
-        let responses = nats_client.get_messages_for_subject("cim.claude.queries.conversation");
+        let responses: Vec<&NatsMessage> = nats_client.published_messages
+            .iter()
+            .filter(|msg| msg.subject.starts_with("cim.claude.queries.conversation") && msg.subject.ends_with(".response"))
+            .collect();
         assert_eq!(responses.len(), 1); // Includes response
         
         // Verify search query headers
@@ -1098,7 +1111,7 @@ mod test_helpers {
     use super::*;
     
     /// Helper to simulate complete user story flow through NATS
-    pub async fn simulate_complete_user_story_flow(
+    pub async fn _simulate_complete_user_story_flow(
         nats_client: &mut MockNatsClient,
         story_name: &str,
     ) -> Result<usize, String> {
@@ -1169,7 +1182,7 @@ mod test_helpers {
     }
     
     /// Validate that a NATS message follows expected patterns
-    pub fn validate_nats_message(message: &NatsMessage, expected_pattern: &str) -> bool {
+    pub fn _validate_nats_message(message: &NatsMessage, expected_pattern: &str) -> bool {
         // Check subject pattern
         if !message.subject.contains(expected_pattern) {
             return false;

@@ -621,7 +621,7 @@ mod tool_management_tests {
         assert!(!health_event.is_error());
         
         // API availability changed
-        let availability_event = ClaudeApiEvent::ApiAvailabilityChanged {
+        let _availability_event = ClaudeApiEvent::ApiAvailabilityChanged {
             previous_status: ApiStatus::Healthy,
             new_status: ApiStatus::Degraded,
             reason: "Increased latency detected".to_string(),
@@ -679,7 +679,7 @@ mod conversation_management_tests {
         assert!(request.validate().is_ok());
         assert!(matches!(request.messages[0].role, MessageRole::User));
         
-        let command = ClaudeApiCommand::SendMessage {
+        let _command = ClaudeApiCommand::SendMessage {
             command_id: ClaudeCommandId::new(),
             conversation_id: conversation_id.clone(),
             session_id: session_id.clone(),
@@ -1322,7 +1322,7 @@ mod event_sourcing_coverage_tests {
     #[tokio::test]
     async fn test_story_7_2_support_event_replay_and_time_travel() {
         let conversation_id = ConversationId::new();
-        let session_id = SessionId::new();
+        let _session_id = SessionId::new();
         
         // Create a sequence of events that could be replayed
         let events = vec![
@@ -1434,9 +1434,9 @@ mod integration_test_helpers {
     use super::*;
 
     /// Helper function to simulate complete conversation flow
-    pub async fn simulate_complete_conversation_flow() -> Result<(), String> {
+    pub async fn _simulate_complete_conversation_flow() -> Result<(), String> {
         let conversation_id = ConversationId::new();
-        let session_id = SessionId::new();
+        let _session_id = SessionId::new();
         
         // 1. Start conversation with system prompt
         let system_prompt = ClaudeSystemPrompt::new("You are a helpful coding assistant".to_string())?;
@@ -1452,7 +1452,7 @@ mod integration_test_helpers {
         request.validate()?;
         
         // 3. Add tools
-        let code_tool = ClaudeToolDefinition::new(
+        let _code_tool = ClaudeToolDefinition::new(
             "code_executor".to_string(),
             "Executes code snippets".to_string(),
             serde_json::json!({
@@ -1487,8 +1487,8 @@ mod integration_test_helpers {
     }
     
     /// Helper to validate error handling flows
-    pub async fn simulate_error_handling_flow() -> Result<(), String> {
-        let conversation_id = ConversationId::new();
+    pub async fn _simulate_error_handling_flow() -> Result<(), String> {
+        let _conversation_id = ConversationId::new();
         
         // Simulate various error scenarios
         let errors = vec![

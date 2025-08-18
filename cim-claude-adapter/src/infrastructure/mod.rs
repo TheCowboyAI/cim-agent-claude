@@ -8,3 +8,5 @@
 
 pub mod subjects;
 pub mod nats_config;
+pub mod nats_client;
+pub mod claude_client;

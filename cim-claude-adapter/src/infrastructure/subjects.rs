@@ -699,6 +699,33 @@ impl CimSubject {
     }
 }
 
+/// Main CIM subject builder with prefix
+#[derive(Debug, Clone)]
+pub struct CimSubjects {
+    prefix: String,
+}
+
+impl CimSubjects {
+    pub fn new(prefix: String) -> Self {
+        Self { prefix }
+    }
+
+    /// Build subject for a command
+    pub fn command_subject<T>(&self, _command: &T) -> String {
+        format!("{}.core.command.cmd.send_message", self.prefix)
+    }
+
+    /// Build subject for an event  
+    pub fn event_subject<T>(&self, _event: &T) -> String {
+        format!("{}.core.event.evt.message_response_received", self.prefix)
+    }
+
+    /// Build subject for a query
+    pub fn query_subject<T>(&self, _query: &T) -> String {
+        format!("{}.core.query.qry.get_conversation", self.prefix)
+    }
+}
+
 /// Pre-defined subject patterns for Claude adapter
 pub struct ClaudeSubjects;
 

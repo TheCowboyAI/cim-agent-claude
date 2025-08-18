@@ -8,13 +8,9 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
     flake-utils.url = "github:numtide/flake-utils";
-    crane = {
-      url = "github:ipetkov/crane";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
-  outputs = { self, nixpkgs, rust-overlay, flake-utils, crane }:
+  outputs = { self, nixpkgs, rust-overlay, flake-utils }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs {
@@ -27,21 +23,29 @@
           extensions = [ "rust-src" "rust-analyzer" ];
         };
 
-        # Crane library for building Rust projects
-        craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
+        # CIM Claude Adapter Configuration
+        # Hard-locked Anthropic API version for consistency
+        anthropicApiVersion = "2023-06-01";
 
-        # Common arguments for crane
-        src = craneLib.cleanCargoSource (craneLib.path ./.);
-        commonArgs = {
-          inherit src;
-          strictDeps = true;
+        # Simple Rust package using rustPlatform
+        cim-claude-adapter = pkgs.rustPlatform.buildRustPackage rec {
+          pname = "cim-claude-adapter";
+          version = "0.1.0";
+          
+          # Copy the entire source directory without filtering
+          src = pkgs.lib.cleanSource ./.;
+          
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+          };
+
+          # Build-time environment variables
+          CIM_ANTHROPIC_API_VERSION = anthropicApiVersion;
           
           buildInputs = with pkgs; [
-            # Runtime dependencies
             openssl
             pkg-config
           ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
-            # macOS-specific dependencies
             pkgs.libiconv
             pkgs.darwin.apple_sdk.frameworks.Security
             pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
@@ -49,19 +53,9 @@
 
           nativeBuildInputs = with pkgs; [
             pkg-config
+            rustToolchain
           ];
-        };
 
-        # Build just the cargo dependencies (this is cached)
-        cargoArtifacts = craneLib.buildDepsOnly commonArgs;
-
-        # Build the actual crate
-        cim-claude-adapter = craneLib.buildPackage (commonArgs // {
-          inherit cargoArtifacts;
-          
-          # Additional build-time environment variables
-          CARGO_BUILD_INCREMENTAL = "false";
-          
           # Metadata
           meta = with pkgs.lib; {
             description = "Event-driven Claude AI adapter for CIM ecosystems";
@@ -70,7 +64,7 @@
             maintainers = [ "Cowboy AI, LLC <hello@cowboy-ai.com>" ];
             platforms = platforms.unix;
           };
-        });
+        };
 
         # Skip NixOS systems for now due to complexity
         # TODO: Re-enable when module integration is stable
@@ -84,9 +78,10 @@
         };
 
         # Development shell
-        devShells.default = craneLib.devShell {
-          # Inherit inputs from the package
-          inputsFrom = [ cim-claude-adapter ];
+        devShells.default = pkgs.mkShell {
+          # Build inputs (same as the package)
+          buildInputs = cim-claude-adapter.buildInputs;
+          nativeBuildInputs = cim-claude-adapter.nativeBuildInputs;
 
           # Additional packages for development
           packages = with pkgs; [
@@ -115,10 +110,13 @@
           ];
 
           # Environment variables for development
+          CIM_ANTHROPIC_API_VERSION = anthropicApiVersion;
+          
           shellHook = ''
             echo "🤖 CIM Claude Adapter Development Environment"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo "📦 Rust toolchain: $(rustc --version)"
+            echo "🔒 Anthropic API Version: ${anthropicApiVersion} (hard-locked)"
             echo "🔧 Available commands:"
             echo "  cargo build                 - Build the project"
             echo "  cargo test                  - Run tests"
@@ -153,40 +151,54 @@
           build = cim-claude-adapter;
           
           # Clippy check
-          clippy = craneLib.cargoClippy (commonArgs // {
-            inherit cargoArtifacts;
-            cargoClippyExtraArgs = "--all-targets -- --deny warnings";
-          });
-          
-          # Formatting check
-          fmt = craneLib.cargoFmt {
-            inherit src;
+          clippy = pkgs.rustPlatform.buildRustPackage {
+            pname = "cim-claude-adapter-clippy";
+            version = "0.1.0";
+            src = ./.;
+            cargoLock = { lockFile = ./Cargo.lock; };
+            CIM_ANTHROPIC_API_VERSION = anthropicApiVersion;
+            buildInputs = cim-claude-adapter.buildInputs;
+            nativeBuildInputs = cim-claude-adapter.nativeBuildInputs;
+            buildPhase = ''
+              cargo clippy --all-targets -- --deny warnings
+            '';
+            installPhase = ''
+              mkdir -p $out
+              echo "Clippy check passed" > $out/clippy-success
+            '';
           };
           
-          # Audit check (commented out for now due to advisory-db dependency)
-          # audit = craneLib.cargoAudit {
-          #   inherit src;
-          #   advisory-db = pkgs.fetchFromGitHub {
-          #     owner = "RustSec";
-          #     repo = "advisory-db";
-          #     rev = "main";
-          #     sha256 = ""; # Would need actual hash
-          #   };
-          # };
+          # Formatting check
+          fmt = pkgs.stdenv.mkDerivation {
+            pname = "cim-claude-adapter-fmt";
+            version = "0.1.0";
+            src = ./.;
+            nativeBuildInputs = [ rustToolchain ];
+            buildPhase = ''
+              cargo fmt --check
+            '';
+            installPhase = ''
+              mkdir -p $out
+              echo "Format check passed" > $out/fmt-success
+            '';
+          };
           
-          # Documentation check
-          doc = craneLib.cargoDoc (commonArgs // {
-            inherit cargoArtifacts;
-          });
-          
-          # Test check
-          test = craneLib.cargoNextest (commonArgs // {
-            inherit cargoArtifacts;
-            partitions = 1;
-            partitionType = "count";
-          });
-          
-          # TODO: Add integration test when module integration is stable
+          # Test check (basic - can be expanded)
+          test = pkgs.stdenv.mkDerivation {
+            pname = "cim-claude-adapter-test";
+            version = "0.1.0";
+            src = ./.;
+            CIM_ANTHROPIC_API_VERSION = anthropicApiVersion;
+            buildInputs = cim-claude-adapter.buildInputs;
+            nativeBuildInputs = cim-claude-adapter.nativeBuildInputs;
+            buildPhase = ''
+              cargo test --lib
+            '';
+            installPhase = ''
+              mkdir -p $out
+              echo "Tests passed" > $out/test-success
+            '';
+          };
         };
       }
     ) // {

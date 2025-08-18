@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIM Expert - Architectural Guidance</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f0f23;
+            color: #cccccc;
+            line-height: 1.6;
+        }
+
+        .header {
+            background: #1a1a2e;
+            padding: 1rem 0;
+            border-bottom: 2px solid #16213e;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo h1 {
+            color: #00d4aa;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .robot {
+            font-size: 2rem;
+        }
+
+        .main {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 2rem;
+            padding: 2rem 0;
+            min-height: calc(100vh - 100px);
+        }
+
+        .sidebar {
+            background: #16213e;
+            border-radius: 8px;
+            padding: 1.5rem;
+            height: fit-content;
+        }
+
+        .sidebar h3 {
+            color: #00d4aa;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+
+        .topic-list {
+            list-style: none;
+        }
+
+        .topic-list li {
+            margin-bottom: 0.5rem;
+        }
+
+        .topic-btn {
+            width: 100%;
+            padding: 0.75rem;
+            background: #0f3460;
+            border: 1px solid #16213e;
+            color: #cccccc;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: left;
+        }
+
+        .topic-btn:hover,
+        .topic-btn.active {
+            background: #00d4aa;
+            color: #0f0f23;
+            border-color: #00d4aa;
+        }
+
+        .chat-container {
+            background: #16213e;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 200px);
+        }
+
+        .chat-header {
+            padding: 1rem;
+            border-bottom: 1px solid #0f3460;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-title {
+            color: #00d4aa;
+            font-size: 1.2rem;
+        }
+
+        .conversation-controls {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid #00d4aa;
+            background: transparent;
+            color: #00d4aa;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            background: #00d4aa;
+            color: #0f0f23;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 1rem;
+            border-radius: 8px;
+            position: relative;
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background: #0f3460;
+            color: #cccccc;
+        }
+
+        .message.expert {
+            align-self: flex-start;
+            background: #1a4d3a;
+            color: #cccccc;
+        }
+
+        .message.system {
+            align-self: center;
+            background: #2d1b3d;
+            color: #cccccc;
+            font-style: italic;
+            max-width: 60%;
+        }
+
+        .message-meta {
+            font-size: 0.8rem;
+            opacity: 0.7;
+            margin-bottom: 0.5rem;
+        }
+
+        .message-content {
+            white-space: pre-wrap;
+        }
+
+        .chat-input {
+            border-top: 1px solid #0f3460;
+            padding: 1rem;
+            display: flex;
+            gap: 1rem;
+        }
+
+        .input-group {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 0.75rem;
+            background: #0f3460;
+            border: 1px solid #16213e;
+            color: #cccccc;
+            border-radius: 4px;
+            resize: none;
+            min-height: 60px;
+            font-family: inherit;
+        }
+
+        .message-input:focus {
+            outline: none;
+            border-color: #00d4aa;
+        }
+
+        .input-controls {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .topic-select {
+            padding: 0.5rem;
+            background: #0f3460;
+            border: 1px solid #16213e;
+            color: #cccccc;
+            border-radius: 4px;
+        }
+
+        .send-btn {
+            padding: 0.75rem 1.5rem;
+            background: #00d4aa;
+            color: #0f0f23;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .send-btn:hover:not(:disabled) {
+            background: #00b894;
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: none;
+            align-items: center;
+            gap: 0.5rem;
+            color: #00d4aa;
+        }
+
+        .loading.visible {
+            display: flex;
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #0f3460;
+            border-top: 2px solid #00d4aa;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .status-bar {
+            padding: 0.5rem 1rem;
+            background: #0f3460;
+            border-top: 1px solid #16213e;
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .expert-stats {
+            color: #00d4aa;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #00d4aa;
+        }
+
+        .status-dot.disconnected {
+            background: #ff6b6b;
+        }
+
+        @media (max-width: 768px) {
+            .main {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            .sidebar {
+                order: 2;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <div class="logo">
+                <span class="robot">🤖</span>
+                <h1>CIM Expert</h1>
+                <span>Architectural Guidance for Composable Information Machines</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="main">
+            <div class="sidebar">
+                <h3>🧠 Cognitive Architecture</h3>
+                <ul class="topic-list">
+                    <li><button class="topic-btn active" data-topic="Architecture">🏗️ CIM Architecture</button></li>
+                    <li><button class="topic-btn" data-topic="ConceptualSpaces">🌐 Conceptual Spaces</button></li>
+                    <li><button class="topic-btn" data-topic="MemoryEngrams">🧩 Memory Engrams</button></li>
+                    <li><button class="topic-btn" data-topic="GraphWorkflows">🔗 Graph Workflows</button></li>
+                    <li><button class="topic-btn" data-topic="EmergentIntelligence">⚡ Emergent Intelligence</button></li>
+                </ul>
+                
+                <h3>🔬 Technical Foundations</h3>
+                <ul class="topic-list">
+                    <li><button class="topic-btn" data-topic="MathematicalFoundations">📐 Mathematical Foundations</button></li>
+                    <li><button class="topic-btn" data-topic="NatsPatterns">📡 NATS Patterns</button></li>
+                    <li><button class="topic-btn" data-topic="EventSourcing">📝 Event Sourcing</button></li>
+                    <li><button class="topic-btn" data-topic="DomainModeling">🎭 Domain Modeling</button></li>
+                </ul>
+                
+                <h3>⚡ Performance & Practice</h3>
+                <ul class="topic-list">
+                    <li><button class="topic-btn" data-topic="Implementation">⚙️ Implementation</button></li>
+                    <li><button class="topic-btn" data-topic="CognitivePerformance">🚀 Cognitive Performance</button></li>
+                    <li><button class="topic-btn" data-topic="Troubleshooting">🔧 Troubleshooting</button></li>
+                </ul>
+
+                <div style="margin-top: 2rem;">
+                    <h3>📊 Session Info</h3>
+                    <div class="expert-stats">
+                        <div>Messages: <span id="message-count">0</span></div>
+                        <div>Topic: <span id="current-topic">Architecture</span></div>
+                        <div>Tokens: <span id="token-count">0</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-container">
+                <div class="chat-header">
+                    <div class="chat-title">🧠 CIM Expert Consultation</div>
+                    <div class="conversation-controls">
+                        <button class="btn" id="new-conversation">New Conversation</button>
+                        <button class="btn" id="export-conversation">Export</button>
+                    </div>
+                </div>
+
+                <div class="chat-messages" id="messages">
+                    <div class="message system">
+                        <div class="message-meta">System • Just now</div>
+                        <div class="message-content">Welcome to CIM Expert! I'm here to help you understand CIM's cognitive architecture - including Conceptual Spaces, memory engram patterns, graph-based workflows, and emergent intelligence. What would you like to explore about this cognitive computing system?</div>
+                    </div>
+                </div>
+
+                <div class="chat-input">
+                    <div class="input-group">
+                        <textarea 
+                            class="message-input" 
+                            id="message-input" 
+                            placeholder="Ask me about Conceptual Spaces, memory engrams, graph workflows, emergent intelligence, or any aspect of CIM's cognitive architecture..."
+                            rows="3"></textarea>
+                        <div class="input-controls">
+                            <select class="topic-select" id="topic-select">
+                                <optgroup label="🧠 Cognitive Architecture">
+                                    <option value="Architecture">🏗️ CIM Architecture</option>
+                                    <option value="ConceptualSpaces">🌐 Conceptual Spaces</option>
+                                    <option value="MemoryEngrams">🧩 Memory Engrams</option>
+                                    <option value="GraphWorkflows">🔗 Graph Workflows</option>
+                                    <option value="EmergentIntelligence">⚡ Emergent Intelligence</option>
+                                </optgroup>
+                                <optgroup label="🔬 Technical Foundations">
+                                    <option value="MathematicalFoundations">📐 Mathematical Foundations</option>
+                                    <option value="NatsPatterns">📡 NATS Patterns</option>
+                                    <option value="EventSourcing">📝 Event Sourcing</option>
+                                    <option value="DomainModeling">🎭 Domain Modeling</option>
+                                </optgroup>
+                                <optgroup label="⚡ Performance & Practice">
+                                    <option value="Implementation">⚙️ Implementation</option>
+                                    <option value="CognitivePerformance">🚀 Cognitive Performance</option>
+                                    <option value="Troubleshooting">🔧 Troubleshooting</option>
+                                </optgroup>
+                            </select>
+                            <div class="loading" id="loading">
+                                <div class="spinner"></div>
+                                <span>CIM Expert thinking...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="send-btn" id="send-btn">Send</button>
+                </div>
+
+                <div class="status-bar">
+                    <div class="expert-stats">
+                        CIM Expert Service v0.1.0 • Powered by Claude AI
+                    </div>
+                    <div class="connection-status">
+                        <div class="status-dot" id="connection-dot"></div>
+                        <span id="connection-status">Connected</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class CimExpertClient {
+            constructor() {
+                this.conversationId = null;
+                this.messageCount = 0;
+                this.tokenCount = 0;
+                this.currentTopic = 'Architecture';
+                
+                this.initializeUI();
+                this.startNewConversation();
+            }
+
+            initializeUI() {
+                // Topic buttons
+                document.querySelectorAll('.topic-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        document.querySelectorAll('.topic-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        this.currentTopic = btn.dataset.topic;
+                        document.getElementById('current-topic').textContent = this.getTopicDisplayName(this.currentTopic);
+                        document.getElementById('topic-select').value = this.currentTopic;
+                    });
+                });
+
+                // Send message
+                document.getElementById('send-btn').addEventListener('click', () => this.sendMessage());
+                document.getElementById('message-input').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.sendMessage();
+                    }
+                });
+
+                // Topic select sync
+                document.getElementById('topic-select').addEventListener('change', (e) => {
+                    this.currentTopic = e.target.value;
+                    document.getElementById('current-topic').textContent = this.getTopicDisplayName(this.currentTopic);
+                    document.querySelectorAll('.topic-btn').forEach(btn => {
+                        btn.classList.toggle('active', btn.dataset.topic === this.currentTopic);
+                    });
+                });
+
+                // Conversation controls
+                document.getElementById('new-conversation').addEventListener('click', () => this.startNewConversation());
+                document.getElementById('export-conversation').addEventListener('click', () => this.exportConversation());
+            }
+
+            async startNewConversation() {
+                try {
+                    const response = await fetch('/api/v1/conversations', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            context: 'web-interface',
+                            user_id: 'web-user-' + Date.now()
+                        })
+                    });
+
+                    const data = await response.json();
+                    this.conversationId = data.conversation_id;
+                    this.messageCount = 1; // System message
+                    this.tokenCount = 0;
+                    
+                    // Clear messages except system message
+                    const messagesContainer = document.getElementById('messages');
+                    messagesContainer.innerHTML = `
+                        <div class="message system">
+                            <div class="message-meta">System • Just now</div>
+                            <div class="message-content">Welcome to CIM Expert! I'm here to help you with CIM architecture, implementation, and best practices. What would you like to know about Composable Information Machines?</div>
+                        </div>
+                    `;
+                    
+                    this.updateStats();
+                    this.updateConnectionStatus(true);
+                } catch (error) {
+                    console.error('Failed to start conversation:', error);
+                    this.updateConnectionStatus(false);
+                }
+            }
+
+            async sendMessage() {
+                const messageInput = document.getElementById('message-input');
+                const message = messageInput.value.trim();
+                
+                if (!message) return;
+
+                const sendBtn = document.getElementById('send-btn');
+                const loading = document.getElementById('loading');
+
+                // Show loading state
+                sendBtn.disabled = true;
+                loading.classList.add('visible');
+                
+                // Add user message to UI
+                this.addMessageToUI('user', message, this.currentTopic);
+                messageInput.value = '';
+                this.messageCount++;
+
+                try {
+                    const response = await fetch(`/api/v1/conversations/${this.conversationId}/messages`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            message: message,
+                            topic: this.currentTopic
+                        })
+                    });
+
+                    const data = await response.json();
+                    
+                    // Add expert response to UI
+                    this.addMessageToUI('expert', data.response.explanation, this.currentTopic, data.response.metadata);
+                    this.messageCount++;
+                    this.tokenCount += data.response.metadata.tokens_used;
+
+                } catch (error) {
+                    console.error('Failed to send message:', error);
+                    this.addMessageToUI('system', '❌ Error: Failed to get response from CIM Expert. Please try again.', null);
+                    this.updateConnectionStatus(false);
+                } finally {
+                    sendBtn.disabled = false;
+                    loading.classList.remove('visible');
+                    this.updateStats();
+                }
+            }
+
+            addMessageToUI(role, content, topic, metadata = null) {
+                const messagesContainer = document.getElementById('messages');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${role}`;
+
+                const roleIcon = {
+                    user: '👤',
+                    expert: '🧠',
+                    system: '⚙️'
+                }[role] || '';
+
+                const topicText = topic ? ` • ${this.getTopicDisplayName(topic)}` : '';
+                const metaText = metadata ? ` • ${metadata.response_time_ms}ms • ${metadata.tokens_used} tokens` : '';
+
+                messageDiv.innerHTML = `
+                    <div class="message-meta">${roleIcon} ${role.charAt(0).toUpperCase() + role.slice(1)} • Just now${topicText}${metaText}</div>
+                    <div class="message-content">${this.formatMessage(content)}</div>
+                `;
+
+                messagesContainer.appendChild(messageDiv);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+
+            formatMessage(content) {
+                // Simple formatting for code blocks and emphasis
+                return content
+                    .replace(/```([^`]+)```/g, '<pre style="background: #0f3460; padding: 1rem; border-radius: 4px; margin: 0.5rem 0;"><code>$1</code></pre>')
+                    .replace(/`([^`]+)`/g, '<code style="background: #0f3460; padding: 0.2rem 0.4rem; border-radius: 2px;">$1</code>')
+                    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+            }
+
+            getTopicDisplayName(topic) {
+                const displayNames = {
+                    'Architecture': 'CIM Architecture',
+                    'ConceptualSpaces': 'Conceptual Spaces',
+                    'MemoryEngrams': 'Memory Engrams',
+                    'GraphWorkflows': 'Graph Workflows',
+                    'EmergentIntelligence': 'Emergent Intelligence',
+                    'MathematicalFoundations': 'Mathematical Foundations',
+                    'NatsPatterns': 'NATS Patterns',
+                    'EventSourcing': 'Event Sourcing',
+                    'DomainModeling': 'Domain Modeling',
+                    'Implementation': 'Implementation',
+                    'CognitivePerformance': 'Cognitive Performance',
+                    'Troubleshooting': 'Troubleshooting'
+                };
+                return displayNames[topic] || topic;
+            }
+
+            updateStats() {
+                document.getElementById('message-count').textContent = this.messageCount;
+                document.getElementById('token-count').textContent = this.tokenCount;
+            }
+
+            updateConnectionStatus(connected) {
+                const dot = document.getElementById('connection-dot');
+                const status = document.getElementById('connection-status');
+                
+                if (connected) {
+                    dot.classList.remove('disconnected');
+                    status.textContent = 'Connected';
+                } else {
+                    dot.classList.add('disconnected');
+                    status.textContent = 'Disconnected';
+                }
+            }
+
+            async exportConversation() {
+                if (!this.conversationId) return;
+
+                try {
+                    const response = await fetch(`/api/v1/conversations/${this.conversationId}`);
+                    const conversation = await response.json();
+                    
+                    const exportData = {
+                        conversation_id: conversation.id,
+                        created_at: conversation.created_at,
+                        messages: conversation.messages,
+                        context: conversation.context,
+                        exported_at: new Date().toISOString()
+                    };
+
+                    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `cim-expert-conversation-${conversation.id.substring(0, 8)}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                } catch (error) {
+                    console.error('Failed to export conversation:', error);
+                }
+            }
+        }
+
+        // Initialize the CIM Expert client when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new CimExpertClient();
+        });
+    </script>
+</body>
+</html>
