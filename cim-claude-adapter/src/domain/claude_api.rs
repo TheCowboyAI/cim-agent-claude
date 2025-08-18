@@ -443,11 +443,17 @@ pub struct ClaudeApiRequest {
     pub model: ClaudeModel,
     pub messages: Vec<ClaudeMessage>,
     pub max_tokens: MaxTokens,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub system: Option<ClaudeSystemPrompt>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<Temperature>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub stop_sequences: Option<StopSequences>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<ClaudeToolDefinition>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub stream: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<HashMap<String, String>>,
 }
 
