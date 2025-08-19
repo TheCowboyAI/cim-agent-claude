@@ -437,6 +437,11 @@ impl GuiNatsClient {
             };
             
             if let Some(client) = client_option {
+                // Check connection state first
+                if !matches!(client.connection_state(), async_nats::connection::State::Connected) {
+                    return Err("NATS connection lost - please reconnect".to_string());
+                }
+                
                 let command_type = match &command_envelope.command {
                     DomainCommand::StartConversation { .. } => "start_conversation",
                     DomainCommand::SendPrompt { .. } => "send_prompt", 
@@ -447,11 +452,21 @@ impl GuiNatsClient {
                 let payload = serde_json::to_vec(&command_envelope)
                     .map_err(|e| format!("Serialization failed: {}", e))?;
                 
-                client.publish(subject, payload.into())
-                    .await
-                    .map_err(|e| format!("NATS publish failed: {}", e))?;
-                
-                Ok(())
+                match client.publish(subject, payload.into()).await {
+                    Ok(_) => {
+                        info!("Successfully published command to {}", subject);
+                        Ok(())
+                    }
+                    Err(e) => {
+                        error!("NATS publish failed: {}", e);
+                        // Clear the connection on failure
+                        {
+                            let mut client_guard = self.client.lock().unwrap();
+                            *client_guard = None;
+                        }
+                        Err(format!("NATS publish failed: {} - please reconnect", e))
+                    }
+                }
             } else {
                 Err("Not connected to NATS".to_string())
             }
