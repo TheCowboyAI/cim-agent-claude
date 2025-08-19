@@ -5,7 +5,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::{num::NonZeroU32, sync::Arc, time::Duration};
 use tokio::sync::RwLock;
-use tracing::{info, warn, error};
+use tracing::{info, error};
 
 use crate::{
     domain::{errors::*, value_objects::*},
@@ -233,6 +233,7 @@ impl ClaudeApiAdapter {
         // Convert to domain objects
         let content = claude_response.content
             .first()
+            .filter(|c| c.content_type == "text")
             .map(|c| c.text.clone())
             .unwrap_or_default();
             

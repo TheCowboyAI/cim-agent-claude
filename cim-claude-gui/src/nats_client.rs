@@ -16,12 +16,13 @@ use tokio::sync::mpsc;
 use futures::channel::mpsc;
 
 use tracing::{info, warn, error};
+use std::sync::{Arc, Mutex};
 
 #[cfg(target_arch = "wasm32")]
 use crate::nats_websocket::WebSocketNatsClient;
 
 use cim_claude_adapter::{
-    domain::{commands::*, events::*, value_objects::*, ConversationAggregate},
+    domain::{commands::{Command as DomainCommand, CommandEnvelope}, events::*, value_objects::*, ConversationAggregate},
 };
 use crate::messages::{Message, HealthStatus, SystemMetrics};
 
@@ -30,9 +31,9 @@ use crate::messages::{Message, HealthStatus, SystemMetrics};
 #[derive(Clone, Debug)]
 pub struct GuiNatsClient {
     #[cfg(not(target_arch = "wasm32"))]
-    client: Option<Client>,
+    client: Arc<Mutex<Option<Client>>>,
     #[cfg(not(target_arch = "wasm32"))]
-    jetstream: Option<jetstream::Context>,
+    jetstream: Arc<Mutex<Option<jetstream::Context>>>,
     
     #[cfg(target_arch = "wasm32")]
     websocket_client: WebSocketNatsClient,
@@ -44,9 +45,9 @@ impl GuiNatsClient {
     pub fn new() -> Self {
         Self {
             #[cfg(not(target_arch = "wasm32"))]
-            client: None,
+            client: Arc::new(Mutex::new(None)),
             #[cfg(not(target_arch = "wasm32"))]
-            jetstream: None,
+            jetstream: Arc::new(Mutex::new(None)),
             
             #[cfg(target_arch = "wasm32")]
             websocket_client: WebSocketNatsClient::new(),
@@ -68,14 +69,28 @@ impl GuiNatsClient {
             let (tx, rx) = mpsc::unbounded_channel();
             self.event_sender = Some(tx.clone());
             
+            // Clone the Arc references for the async task
+            let client_ref = self.client.clone();
+            let jetstream_ref = self.jetstream.clone();
+            
             // Create a task to handle the NATS connection
             let connect_task = async move {
                 match async_nats::connect(&nats_url).await {
                     Ok(client) => {
                         info!("Connected to NATS at {}", nats_url);
-                        let _ = tx.send(Message::Connected);
-                        
                         let jetstream = jetstream::new(client.clone());
+                        
+                        // Store the client and jetstream instances
+                        {
+                            let mut client_lock = client_ref.lock().unwrap();
+                            *client_lock = Some(client.clone());
+                        }
+                        {
+                            let mut jetstream_lock = jetstream_ref.lock().unwrap();
+                            *jetstream_lock = Some(jetstream.clone());
+                        }
+                        
+                        let _ = tx.send(Message::Connected);
                         
                         // Start event subscription task
                         let subscription_tx = tx.clone();
@@ -128,7 +143,7 @@ impl GuiNatsClient {
                         filter_subject: "claude.event.*".to_string(),
                         ..Default::default()
                     }).await {
-                        Ok(mut consumer) => {
+                        Ok(consumer) => {
                             info!("Created JetStream consumer for GUI events");
                             
                             let mut messages = consumer.messages().await.unwrap();
@@ -251,6 +266,28 @@ impl GuiNatsClient {
         matches!(client.connection_state(), async_nats::connection::State::Connected)
     }
     
+    /// Query conversation statistics from NATS streams
+    #[cfg(not(target_arch = "wasm32"))]
+    async fn query_conversation_stats(jetstream: &jetstream::Context, _client: &Client) -> (u32, u64) {
+        let mut active_conversations = 0u32;
+        let mut events_processed = 0u64;
+        
+        // Query KV store for active conversations
+        if let Ok(_kv) = jetstream.get_key_value("CONVERSATION_STATE").await {
+            // In production, scan the KV store for active conversations
+            active_conversations = 0; // Simplified
+        }
+        
+        // Query events stream for processed events count
+        if let Ok(events_stream) = jetstream.get_stream("CLAUDE_EVENTS").await {
+            if let Ok(info) = events_stream.get_info().await {
+                events_processed = info.state.messages;
+            }
+        }
+        
+        (active_conversations, events_processed)
+    }
+    
     /// Query comprehensive system metrics from NATS streams
     #[cfg(not(target_arch = "wasm32"))]
     async fn query_system_metrics(jetstream: &jetstream::Context, _client: &Client) -> SystemMetrics {
@@ -286,42 +323,6 @@ impl GuiNatsClient {
         metrics
     }
     
-    /// Send a command to NATS
-    pub async fn send_command(&self, command_envelope: CommandEnvelope) -> Result<(), String> {
-        #[cfg(target_arch = "wasm32")]
-        {
-            self.websocket_client.send_command(command_envelope).await
-        }
-        
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            if let Some(client) = &self.client {
-                let subject = match &command_envelope.command {
-                    Command::StartConversation { session_id, .. } => {
-                        format!("claude.cmd.{}.start", session_id.as_uuid())
-                    }
-                    Command::SendPrompt { conversation_id, .. } => {
-                        format!("claude.cmd.{}.prompt", conversation_id.as_uuid())
-                    }
-                    Command::EndConversation { conversation_id, .. } => {
-                        format!("claude.cmd.{}.end", conversation_id.as_uuid())
-                    }
-                };
-                
-                let payload = serde_json::to_vec(&command_envelope)
-                    .map_err(|e| format!("Serialization failed: {}", e))?;
-                
-                client
-                    .publish(subject, payload.into())
-                    .await
-                    .map_err(|e| format!("NATS publish failed: {}", e))?;
-                    
-                Ok(())
-            } else {
-                Err("Not connected to NATS".to_string())
-            }
-        }
-    }
     
     /// Load conversation state from NATS KV store
     pub async fn load_conversation(
@@ -335,7 +336,13 @@ impl GuiNatsClient {
         
         #[cfg(not(target_arch = "wasm32"))]
         {
-            if let Some(jetstream) = &self.jetstream {
+            // Extract jetstream from mutex guard before async operations
+            let jetstream_option = {
+                let jetstream_guard = self.jetstream.lock().unwrap();
+                jetstream_guard.clone()
+            };
+            
+            if let Some(jetstream) = jetstream_option.as_ref() {
                 match jetstream.get_key_value("CONVERSATION_STATE").await {
                     Ok(kv) => {
                         let key = format!("conversation:{}", conversation_id.as_uuid());
@@ -371,6 +378,83 @@ impl GuiNatsClient {
             // For now, return empty list
             // In production, you'd scan the KV store or maintain an index
             Ok(vec![])
+        }
+    }
+    
+    /// Request a health check from the CIM system
+    pub async fn request_health_check(&self) -> Result<HealthStatus, String> {
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.websocket_client.request_health_check().await
+        }
+        
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            // Extract values from mutex guards before async operations
+            let (client_option, jetstream_option) = {
+                let client_guard = self.client.lock().unwrap();
+                let jetstream_guard = self.jetstream.lock().unwrap();
+                (client_guard.clone(), jetstream_guard.clone())
+            };
+            
+            if let (Some(client), Some(jetstream)) = (client_option.as_ref(), jetstream_option.as_ref()) {
+                let nats_connected = matches!(client.connection_state(), async_nats::connection::State::Connected);
+                let claude_api_available = Self::check_claude_api_health(client).await;
+                let (active_conversations, events_processed) = Self::query_conversation_stats(jetstream, client).await;
+                
+                Ok(HealthStatus {
+                    nats_connected,
+                    claude_api_available,
+                    active_conversations,
+                    events_processed,
+                    last_check: chrono::Utc::now(),
+                })
+            } else {
+                Ok(HealthStatus {
+                    nats_connected: false,
+                    claude_api_available: false,
+                    active_conversations: 0,
+                    events_processed: 0,
+                    last_check: chrono::Utc::now(),
+                })
+            }
+        }
+    }
+    
+    /// Send a command to the CIM system
+    pub async fn send_command(&self, command_envelope: CommandEnvelope) -> Result<(), String> {
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.websocket_client.send_command(command_envelope).await
+        }
+        
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            // Extract client from the mutex guard before the async operation
+            let client_option = {
+                let client_guard = self.client.lock().unwrap();
+                client_guard.clone()
+            };
+            
+            if let Some(client) = client_option {
+                let command_type = match &command_envelope.command {
+                    DomainCommand::StartConversation { .. } => "start_conversation",
+                    DomainCommand::SendPrompt { .. } => "send_prompt", 
+                    DomainCommand::EndConversation { .. } => "end_conversation",
+                };
+                let subject = format!("cim.claude.command.{}", command_type);
+                
+                let payload = serde_json::to_vec(&command_envelope)
+                    .map_err(|e| format!("Serialization failed: {}", e))?;
+                
+                client.publish(subject, payload.into())
+                    .await
+                    .map_err(|e| format!("NATS publish failed: {}", e))?;
+                
+                Ok(())
+            } else {
+                Err("Not connected to NATS".to_string())
+            }
         }
     }
 }

@@ -24,13 +24,24 @@ pub fn main() {
     // Initialize logging for WASM
     console_log::init_with_level(log::Level::Debug).expect("error initializing log");
     
-    // Configure settings for web
+    // Configure settings for web with embedded fonts
     let settings = Settings {
         window: iced::window::Settings {
             size: (1200, 800),
             min_size: Some((800, 600)),
             ..Default::default()
         },
+        fonts: vec![
+            // Include embedded fonts for consistent rendering across browsers
+            include_bytes!("../../assets/fonts/NotoSans-Regular.woff2").as_slice().into(),
+            include_bytes!("../../assets/fonts/NotoSans-Bold.woff2").as_slice().into(),
+        ],
+        default_font: Some(iced::Font {
+            family: iced::font::Family::Name("Noto Sans"),
+            weight: iced::font::Weight::Normal,
+            stretch: iced::font::Stretch::Normal,
+            style: iced::font::Style::Normal,
+        }),
         ..Default::default()
     };
     

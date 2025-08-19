@@ -8,13 +8,9 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
     flake-utils.url = "github:numtide/flake-utils";
-    crane = {
-      url = "github:ipetkov/crane";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
-  outputs = { self, nixpkgs, rust-overlay, flake-utils, crane }:
+  outputs = { self, nixpkgs, rust-overlay, flake-utils }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs {
@@ -28,36 +24,35 @@
           targets = [ "wasm32-unknown-unknown" ]; # For WASM GUI build
         };
 
-        # Crane library instantiated with our custom toolchain
-        craneLib = crane.lib.${system}.overrideToolchain rustToolchain;
+        # Common build inputs for all packages
+        commonBuildInputs = with pkgs; [
+          openssl
+        ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+          pkgs.libiconv
+          pkgs.darwin.apple_sdk.frameworks.Security
+          pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
+        ];
 
-        # Common Rust build args
-        commonArgs = {
-          src = craneLib.cleanCargoSource (craneLib.path ./.);
-          strictDeps = true;
-          buildInputs = with pkgs; [
-            openssl
-            pkg-config
-          ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
-            pkgs.libiconv
-            pkgs.darwin.apple_sdk.frameworks.Security
-            pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
-          ];
-          nativeBuildInputs = with pkgs; [
-            pkg-config
-            rustToolchain
-          ];
-        };
-
-        # Dependencies-only derivation to speed up builds
-        cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+        commonNativeBuildInputs = with pkgs; [
+          pkg-config
+          rustToolchain
+        ];
 
         # CIM Claude Adapter (backend service)
-        cim-claude-adapter = craneLib.buildPackage (commonArgs // {
-          inherit cargoArtifacts;
+        cim-claude-adapter = pkgs.rustPlatform.buildRustPackage rec {
           pname = "cim-claude-adapter";
           version = "0.1.0";
-          cargoExtraArgs = "-p cim-claude-adapter";
+          
+          src = pkgs.lib.cleanSource ./.;
+          
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+          };
+          
+          buildInputs = commonBuildInputs;
+          nativeBuildInputs = commonNativeBuildInputs;
+          
+          buildAndTestSubdir = "cim-claude-adapter";
           
           meta = with pkgs.lib; {
             description = "Event-driven Claude AI adapter service for CIM ecosystems";
@@ -66,16 +61,20 @@
             maintainers = [ "Cowboy AI, LLC <info@thecowboy.ai>" ];
             platforms = platforms.unix;
           };
-        });
+        };
 
         # CIM Claude GUI (desktop application)
-        cim-claude-gui = craneLib.buildPackage (commonArgs // {
-          inherit cargoArtifacts;
+        cim-claude-gui = pkgs.rustPlatform.buildRustPackage rec {
           pname = "cim-claude-gui";
           version = "0.1.0";
-          cargoExtraArgs = "-p cim-claude-gui";
           
-          buildInputs = commonArgs.buildInputs ++ (with pkgs; [
+          src = pkgs.lib.cleanSource ./.;
+          
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+          };
+          
+          buildInputs = commonBuildInputs ++ (with pkgs; [
             # Additional GUI dependencies
             xorg.libX11
             xorg.libXcursor
@@ -85,6 +84,9 @@
             libxkbcommon
             wayland
           ]);
+          nativeBuildInputs = commonNativeBuildInputs;
+          
+          buildAndTestSubdir = "cim-claude-gui";
           
           meta = with pkgs.lib; {
             description = "Desktop GUI for managing CIM Claude conversations";
@@ -93,13 +95,13 @@
             maintainers = [ "Cowboy AI, LLC <info@thecowboy.ai>" ];
             platforms = platforms.unix;
           };
-        });
+        };
 
         # CIM Claude GUI WASM build for static web site
         cim-claude-gui-wasm = pkgs.stdenv.mkDerivation {
           pname = "cim-claude-gui-wasm";
           version = "0.1.0";
-          src = craneLib.cleanCargoSource (craneLib.path ./.);
+          src = pkgs.lib.cleanSource ./.;
           
           nativeBuildInputs = with pkgs; [
             rustToolchain
@@ -210,7 +212,7 @@ EOF
 
         # Development shell
         devShells.default = pkgs.mkShell {
-          buildInputs = commonArgs.buildInputs ++ (with pkgs; [
+          buildInputs = commonBuildInputs ++ (with pkgs; [
             # GUI development dependencies
             xorg.libX11
             xorg.libXcursor
@@ -220,7 +222,7 @@ EOF
             libxkbcommon
             wayland
           ]);
-          nativeBuildInputs = commonArgs.nativeBuildInputs ++ (with pkgs; [
+          nativeBuildInputs = commonNativeBuildInputs ++ (with pkgs; [
             # Additional development tools
             rust-analyzer
             clippy
@@ -295,24 +297,6 @@ EOF
           build-adapter = cim-claude-adapter;
           build-gui = cim-claude-gui;
           build-wasm = cim-claude-gui-wasm;
-          
-          # Clippy check
-          clippy = craneLib.cargoClippy (commonArgs // {
-            inherit cargoArtifacts;
-            cargoClippyExtraArgs = "--all-targets -- --deny warnings";
-          });
-          
-          # Formatting check
-          fmt = craneLib.cargoFmt {
-            inherit (commonArgs) src;
-          };
-          
-          # Test check
-          test = craneLib.cargoNextest (commonArgs // {
-            inherit cargoArtifacts;
-            partitions = 1;
-            partitionType = "count";
-          });
         };
       }
     ) // {

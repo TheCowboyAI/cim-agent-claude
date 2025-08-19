@@ -25,11 +25,15 @@ futures = "0.3"
 
 # NATS integration (native only)
 async-nats = { version = "0.42", optional = true }
+
+# Bytes - not needed for WASM build
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 bytes = "1.0"
 
 # GUI with Iced (TEA architecture for NATS-driven management) 
-iced = { version = "0.13.1", features = ["advanced", "async-std", "canvas", "debug", "image", "lazy", "markdown", "multi-window", "svg", "system", "web-colors"] }
+iced = { version = "0.13.1", features = ["advanced", "canvas", "debug", "image", "lazy", "markdown", "svg", "web-colors"] }
 iced_modern_theme = "0.1.6"
+
 
 # Serialization and data handling
 serde = { version = "1.0", features = ["derive"] }
@@ -47,6 +51,8 @@ tracing-subscriber = "0.3"
 
 # WASM-specific dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+# Override Iced with minimal features for web
+iced = { version = "0.13.1", features = ["canvas", "debug", "image", "svg", "web-colors"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"

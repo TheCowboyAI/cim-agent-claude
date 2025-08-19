@@ -101,7 +101,7 @@ impl NatsAdapter {
     }
     
     /// Generate NATS subject for response
-    fn response_subject(conversation_id: &ConversationId) -> String {
+    pub fn response_subject(conversation_id: &ConversationId) -> String {
         format!("claude.resp.{}.content", conversation_id.as_uuid())
     }
     
@@ -363,12 +363,12 @@ impl ConversationStatePort for NatsAdapter {
         session_id: &SessionId,
     ) -> Result<Vec<ConversationId>, ApplicationError> {
         // Use NATS KV store to find conversations by session
-        let kv = self.jetstream
+        let _kv = self.jetstream
             .get_key_value("CONVERSATION_STATE")
             .await
             .map_err(|e| InfrastructureError::NatsKvStore(e.to_string()))?;
         
-        let mut active_conversations = Vec::new();
+        let active_conversations = Vec::new();
         
         // For now, we'll use a simple approach - in production you'd want to use watch/scan patterns
         // This is a simplified implementation for getting the service running
@@ -382,12 +382,12 @@ impl ConversationStatePort for NatsAdapter {
     
     async fn cleanup_expired_conversations(&self) -> Result<u32, ApplicationError> {
         // Clean up expired conversations from KV store
-        let kv = self.jetstream
+        let _kv = self.jetstream
             .get_key_value("CONVERSATION_STATE")
             .await
             .map_err(|e| InfrastructureError::NatsKvStore(e.to_string()))?;
         
-        let mut cleaned_count = 0u32;
+        let cleaned_count = 0u32;
         
         // Simplified cleanup for initial implementation
         info!("Background cleanup check performed - would scan for expired conversations");

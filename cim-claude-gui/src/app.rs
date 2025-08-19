@@ -4,7 +4,7 @@
  */
 
 use iced::{
-    widget::{button, column, container, row, text, text_input, Space, scrollable},
+    widget::{button, column, container, row, text, text_input, Space},
     Element, Length, Task, Padding,
 };
 use std::collections::HashMap;
@@ -14,7 +14,7 @@ use iced::Theme;
 use iced_modern_theme::Modern;
 
 use cim_claude_adapter::{
-    domain::{commands::{Command as DomainCommand, *}, events::*, value_objects::*, ConversationAggregate},
+    domain::{commands::Command as DomainCommand, events::EventEnvelope, value_objects::{SessionId, CorrelationId, ConversationContext}, ConversationAggregate},
 };
 use crate::{
     messages::{Message, Tab, HealthStatus, SystemMetrics, CimExpertConversation, CimExpertMessage, CimExpertMessageRole},
@@ -100,9 +100,8 @@ impl CimManagerApp {
                 self.nats_url = url.clone();
                 self.connection_error = None;
                 
-                let _stream = self.nats_client.connect(url);
-                // TODO: Wire up the stream properly with Iced 0.13
-                Task::none()
+                let stream = self.nats_client.connect(url);
+                Task::run(stream, |message| message)
             }
             
             Message::Connected => {
@@ -164,7 +163,7 @@ impl CimManagerApp {
                 }
             }
             
-            Message::SendPrompt { conversation_id, prompt } => {
+            Message::SendPrompt { conversation_id: _, prompt: _ } => {
                 if self.connected {
                     // Implementation for sending prompts
                     Task::none()
@@ -182,28 +181,13 @@ impl CimManagerApp {
                 }
                 
                 // Update conversation state if needed
-                match &event_envelope.event {
-                    DomainEvent::ConversationStarted { conversation_id, .. } => {
-                        // Load full conversation state
-                        let conv_id = conversation_id.clone();
-                        let client = self.nats_client.clone();
-                        return Task::perform(
-                            async move { client.load_conversation(&conv_id).await },
-                            |result| match result {
-                                Ok(Some(aggregate)) => Message::ConversationUpdated(aggregate),
-                                Ok(None) => Message::ErrorOccurred("Conversation not found".to_string()),
-                                Err(e) => Message::ErrorOccurred(e),
-                            }
-                        );
-                    }
-                    _ => {}
-                }
+                // Note: Event handling can be extended here based on specific event types
                 
                 Task::none()
             }
             
             Message::ConversationUpdated(aggregate) => {
-                let conversation_id = aggregate.id().to_string();
+                let conversation_id = aggregate.session_id().as_uuid().to_string();
                 self.conversations.insert(conversation_id, aggregate);
                 Task::none()
             }
@@ -287,7 +271,7 @@ impl CimManagerApp {
                 Task::none()
             }
             
-            Message::CimExpertResponseReceived(message_id, response) => {
+            Message::CimExpertResponseReceived(_message_id, response) => {
                 if let Some(ref mut conversation) = self.cim_expert_conversation {
                     conversation.messages.push(CimExpertMessage {
                         id: uuid::Uuid::new_v4().to_string(),
@@ -307,19 +291,61 @@ impl CimManagerApp {
                 Task::none()
             }
             
+            // Health and Monitoring Message Handlers
+            Message::HealthCheckRequested => {
+                if self.connected {
+                    // Trigger a health check request to the CIM system
+                    let client = self.nats_client.clone();
+                    Task::perform(
+                        async move { client.request_health_check().await },
+                        |result| match result {
+                            Ok(health) => Message::HealthCheckReceived(health),
+                            Err(e) => Message::ErrorOccurred(format!("Health check failed: {}", e)),
+                        }
+                    )
+                } else {
+                    self.error_message = Some("Not connected to NATS".to_string());
+                    Task::none()
+                }
+            }
+            
+            
+            // Unhandled messages
             _ => Task::none(),
         }
     }
     
-    pub fn view(&self) -> Element<Message> {
-        let content = column![
+    pub fn view(&self) -> Element<'_, Message> {
+        let mut content_items = vec![
             self.view_header(),
             self.view_tabs(),
-            self.view_content(),
-            self.view_status_bar(),
-        ]
-        .spacing(16)
-        .padding(24);
+        ];
+        
+        // Show error message if there is one
+        if let Some(ref error) = self.error_message {
+            content_items.push(
+                container(
+                    row![
+                        text(format!("⚠️ Error: {}", error)).size(14),
+                        Space::with_width(Length::Fill),
+                        button("✕")
+                            .on_press(Message::ErrorDismissed)
+                            .style(Modern::secondary_button()),
+                    ]
+                    .align_y(iced::alignment::Vertical::Center)
+                )
+                .padding(12)
+                .style(Modern::card_container())
+                .into()
+            );
+        }
+        
+        content_items.push(self.view_content());
+        content_items.push(self.view_status_bar());
+        
+        let content = column(content_items)
+            .spacing(16)
+            .padding(24);
         
         container(content)
             .width(Length::Fill)
@@ -330,7 +356,7 @@ impl CimManagerApp {
 }
 
 impl CimManagerApp {
-    fn view_header(&self) -> Element<Message> {
+    fn view_header(&self) -> Element<'_, Message> {
         let theme_icon = if self.dark_mode { "☀️" } else { "🌙" };
         
         let header_content = row![
@@ -352,7 +378,7 @@ impl CimManagerApp {
             .into()
     }
     
-    fn view_connection_controls(&self) -> Element<Message> {
+    fn view_connection_controls(&self) -> Element<'_, Message> {
         let status_text = if self.connected {
             text("🟢 Connected")
         } else {
@@ -383,7 +409,7 @@ impl CimManagerApp {
         .into()
     }
     
-    fn view_tabs(&self) -> Element<Message> {
+    fn view_tabs(&self) -> Element<'_, Message> {
         row![
             if self.current_tab == Tab::Dashboard {
                 button("Dashboard")
@@ -444,7 +470,7 @@ impl CimManagerApp {
         .into()
     }
     
-    fn view_content(&self) -> Element<Message> {
+    fn view_content(&self) -> Element<'_, Message> {
         match self.current_tab {
             Tab::Dashboard => self.view_dashboard(),
             Tab::Conversations => self.view_conversations(),
@@ -455,7 +481,7 @@ impl CimManagerApp {
         }
     }
     
-    fn view_dashboard(&self) -> Element<Message> {
+    fn view_dashboard(&self) -> Element<'_, Message> {
         column![
             text("Dashboard").size(20),
             row![
@@ -497,7 +523,7 @@ impl CimManagerApp {
         .into()
     }
     
-    fn view_conversations(&self) -> Element<Message> {
+    fn view_conversations(&self) -> Element<'_, Message> {
         let conversations: Vec<Element<Message>> = self.conversations
             .iter()
             .map(|(id, aggregate)| {
@@ -516,7 +542,7 @@ impl CimManagerApp {
         .into()
     }
     
-    fn view_events(&self) -> Element<Message> {
+    fn view_events(&self) -> Element<'_, Message> {
         let events: Vec<Element<Message>> = self.recent_events
             .iter()
             .take(20)
@@ -540,7 +566,7 @@ impl CimManagerApp {
         .into()
     }
     
-    fn view_monitoring(&self) -> Element<Message> {
+    fn view_monitoring(&self) -> Element<'_, Message> {
         column![
             text("System Monitoring").size(20),
             text(format!("Total Conversations: {}", self.system_metrics.conversations_total)),
@@ -555,7 +581,7 @@ impl CimManagerApp {
         .into()
     }
     
-    fn view_settings(&self) -> Element<Message> {
+    fn view_settings(&self) -> Element<'_, Message> {
         column![
             text("Settings").size(20),
             text("NATS Configuration"),
@@ -567,7 +593,7 @@ impl CimManagerApp {
         .into()
     }
     
-    fn view_cim_expert(&self) -> Element<Message> {
+    fn view_cim_expert(&self) -> Element<'_, Message> {
         let topic_text = format!("{:?}", self.cim_expert_selected_topic);
         
         if let Some(ref conversation) = self.cim_expert_conversation {
@@ -694,7 +720,7 @@ impl CimManagerApp {
         }
     }
     
-    fn view_status_bar(&self) -> Element<Message> {
+    fn view_status_bar(&self) -> Element<'_, Message> {
         if let Some(error) = &self.connection_error {
             row![
                 text(format!("Error: {}", error)),

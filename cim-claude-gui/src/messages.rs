@@ -6,7 +6,6 @@
 #[cfg(feature = "cim-claude-adapter")]
 use cim_claude_adapter::{
     domain::{
-        events::*, 
         ConversationAggregate,
         EventEnvelope,
     },
@@ -25,8 +24,6 @@ use crate::wasm_types::{
     CimExpertMessageRole,
 };
 
-#[cfg(feature = "cim-claude-adapter")]
-use chrono::{DateTime, Utc};
 
 /// TEA Messages for the CIM Manager
 #[derive(Debug, Clone)]
