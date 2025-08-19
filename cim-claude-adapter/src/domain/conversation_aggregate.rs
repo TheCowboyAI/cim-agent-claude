@@ -5,10 +5,11 @@
 
 use crate::domain::{commands::*, errors::*, events::*, value_objects::*};
 use chrono::{DateTime, Duration, Utc};
+use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
 /// Conversation aggregate - manages the lifecycle of a Claude conversation
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ConversationAggregate {
     id: ConversationId,
     session_id: SessionId,
@@ -23,7 +24,7 @@ pub struct ConversationAggregate {
 }
 
 /// Conversation state machine
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ConversationState {
     Draft,      // Initial state, not yet started
     Processing, // Awaiting Claude response
@@ -32,7 +33,7 @@ pub enum ConversationState {
 }
 
 /// Exchange represents a prompt-response pair
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Exchange {
     sequence_number: u32,
     prompt: Prompt,
@@ -42,7 +43,7 @@ pub struct Exchange {
 }
 
 /// Correlation chain for tracking event causation
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CorrelationChain {
     correlation_id: CorrelationId,
     events: Vec<EventId>,

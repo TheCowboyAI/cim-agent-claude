@@ -1,0 +1,719 @@
+/*
+ * Copyright 2025 - Cowboy AI, LLC.
+ * All rights reserved.
+ */
+
+use iced::{
+    widget::{button, column, container, row, text, text_input, Space},
+    Element, Length, Task,
+};
+use std::collections::HashMap;
+
+use cim_claude_adapter::{
+    domain::{commands::{Command as DomainCommand, *}, events::*, value_objects::*, ConversationAggregate},
+};
+use crate::{
+    messages::{Message, Tab, HealthStatus, SystemMetrics, CimExpertConversation, CimExpertMessage, CimExpertMessageRole},
+    nats_client::GuiNatsClient,
+};
+use cim_claude_adapter::CimExpertTopic;
+
+/// Main CIM Manager Application State
+#[derive(Debug)]
+pub struct CimManagerApp {
+    // Connection State
+    nats_client: GuiNatsClient,
+    nats_url: String,
+    connected: bool,
+    connection_error: Option<String>,
+    
+    // UI State
+    current_tab: Tab,
+    prompt_input: String,
+    session_id_input: String,
+    selected_conversation: Option<String>,
+    error_message: Option<String>,
+    
+    // Domain State
+    conversations: HashMap<String, ConversationAggregate>,
+    recent_events: Vec<EventEnvelope>,
+    health_status: HealthStatus,
+    system_metrics: SystemMetrics,
+    
+    // CIM Expert State
+    cim_expert_conversation: Option<CimExpertConversation>,
+    cim_expert_message_input: String,
+    cim_expert_context_input: String,
+    cim_expert_selected_topic: CimExpertTopic,
+}
+
+impl CimManagerApp {
+    pub fn new() -> (Self, Task<Message>) {
+        let app = Self {
+            nats_client: GuiNatsClient::new(),
+            nats_url: "nats://localhost:4222".to_string(),
+            connected: false,
+            connection_error: None,
+            
+            current_tab: Tab::Dashboard,
+            prompt_input: String::new(),
+            session_id_input: SessionId::new().as_uuid().to_string(),
+            selected_conversation: None,
+            error_message: None,
+            
+            conversations: HashMap::new(),
+            recent_events: Vec::new(),
+            health_status: HealthStatus::default(),
+            system_metrics: SystemMetrics::default(),
+            
+            // CIM Expert initialization
+            cim_expert_conversation: None,
+            cim_expert_message_input: String::new(),
+            cim_expert_context_input: String::new(),
+            cim_expert_selected_topic: CimExpertTopic::Architecture,
+        };
+        
+        (app, Task::none())
+    }
+    
+    pub fn title(&self) -> String {
+        "CIM Claude Adapter Manager".to_string()
+    }
+    
+    pub fn update(&mut self, message: Message) -> Task<Message> {
+        match message {
+            Message::Connect(url) => {
+                self.nats_url = url.clone();
+                self.connection_error = None;
+                
+                let _stream = self.nats_client.connect(url);
+                // TODO: Wire up the stream properly with Iced 0.13
+                Task::none()
+            }
+            
+            Message::Connected => {
+                self.connected = true;
+                self.connection_error = None;
+                Task::none()
+            }
+            
+            Message::Disconnected => {
+                self.connected = false;
+                Task::none()
+            }
+            
+            Message::ConnectionError(error) => {
+                self.connected = false;
+                self.connection_error = Some(error);
+                Task::none()
+            }
+            
+            Message::StartConversation { session_id, initial_prompt } => {
+                if self.connected {
+                    let session_id = match uuid::Uuid::parse_str(&session_id) {
+                        Ok(uuid) => SessionId::from_uuid(uuid),
+                        Err(_) => {
+                            self.error_message = Some("Invalid session ID format".to_string());
+                            return Task::none();
+                        }
+                    };
+                    
+                    let prompt = match cim_claude_adapter::domain::value_objects::Prompt::new(initial_prompt) {
+                        Ok(p) => p,
+                        Err(e) => {
+                            self.error_message = Some(format!("Invalid prompt: {}", e));
+                            return Task::none();
+                        }
+                    };
+                    
+                    let correlation_id = CorrelationId::new();
+                    let command = DomainCommand::StartConversation {
+                        session_id: session_id.clone(),
+                        initial_prompt: prompt,
+                        context: ConversationContext::default(),
+                        correlation_id: correlation_id.clone(),
+                    };
+                    
+                    let command_envelope = command.with_metadata(correlation_id);
+                    
+                    let client = self.nats_client.clone();
+                    Task::perform(
+                        async move { client.send_command(command_envelope).await },
+                        |result| match result {
+                            Ok(_) => Message::Connected, // Placeholder
+                            Err(e) => Message::ErrorOccurred(e),
+                        }
+                    )
+                } else {
+                    self.error_message = Some("Not connected to NATS".to_string());
+                    Task::none()
+                }
+            }
+            
+            Message::SendPrompt { conversation_id, prompt } => {
+                if self.connected {
+                    // Implementation for sending prompts
+                    Task::none()
+                } else {
+                    self.error_message = Some("Not connected to NATS".to_string());
+                    Task::none()
+                }
+            }
+            
+            Message::ConversationEvent(event_envelope) => {
+                // Update local state based on received events
+                self.recent_events.insert(0, event_envelope.clone());
+                if self.recent_events.len() > 100 {
+                    self.recent_events.truncate(100);
+                }
+                
+                // Update conversation state if needed
+                match &event_envelope.event {
+                    DomainEvent::ConversationStarted { conversation_id, .. } => {
+                        // Load full conversation state
+                        let conv_id = conversation_id.clone();
+                        let client = self.nats_client.clone();
+                        return Task::perform(
+                            async move { client.load_conversation(&conv_id).await },
+                            |result| match result {
+                                Ok(Some(aggregate)) => Message::ConversationUpdated(aggregate),
+                                Ok(None) => Message::ErrorOccurred("Conversation not found".to_string()),
+                                Err(e) => Message::ErrorOccurred(e),
+                            }
+                        );
+                    }
+                    _ => {}
+                }
+                
+                Task::none()
+            }
+            
+            Message::ConversationUpdated(aggregate) => {
+                let conversation_id = aggregate.id().to_string();
+                self.conversations.insert(conversation_id, aggregate);
+                Task::none()
+            }
+            
+            Message::TabSelected(tab) => {
+                self.current_tab = tab;
+                Task::none()
+            }
+            
+            Message::ConversationSelected(id) => {
+                self.selected_conversation = Some(id);
+                Task::none()
+            }
+            
+            Message::PromptInputChanged(value) => {
+                self.prompt_input = value;
+                Task::none()
+            }
+            
+            Message::SessionIdChanged(value) => {
+                self.session_id_input = value;
+                Task::none()
+            }
+            
+            Message::NatsUrlChanged(value) => {
+                self.nats_url = value;
+                Task::none()
+            }
+            
+            Message::HealthCheckReceived(status) => {
+                self.health_status = status;
+                Task::none()
+            }
+            
+            Message::MetricsReceived(metrics) => {
+                self.system_metrics = metrics;
+                Task::none()
+            }
+            
+            Message::ErrorOccurred(error) => {
+                self.error_message = Some(error);
+                Task::none()
+            }
+            
+            Message::ErrorDismissed => {
+                self.error_message = None;
+                Task::none()
+            }
+            
+            // CIM Expert message handling
+            Message::CimExpertTabSelected => {
+                self.current_tab = Tab::CimExpert;
+                Task::none()
+            }
+            
+            Message::CimExpertStartConversation => {
+                self.cim_expert_start_conversation()
+            }
+            
+            Message::CimExpertSendMessage(message) => {
+                self.cim_expert_send_message(message)
+            }
+            
+            Message::CimExpertMessageInputChanged(input) => {
+                self.cim_expert_message_input = input;
+                Task::none()
+            }
+            
+            Message::CimExpertTopicSelected(topic) => {
+                self.cim_expert_selected_topic = topic;
+                Task::none()
+            }
+            
+            Message::CimExpertContextChanged(context) => {
+                self.cim_expert_context_input = context;
+                Task::none()
+            }
+            
+            Message::CimExpertConversationReceived(conversation) => {
+                self.cim_expert_conversation = Some(conversation);
+                Task::none()
+            }
+            
+            Message::CimExpertResponseReceived(message_id, response) => {
+                if let Some(ref mut conversation) = self.cim_expert_conversation {
+                    conversation.messages.push(CimExpertMessage {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        role: CimExpertMessageRole::Expert,
+                        content: response,
+                        timestamp: chrono::Utc::now(),
+                        topic: Some(self.cim_expert_selected_topic.clone()),
+                    });
+                    conversation.last_activity = chrono::Utc::now();
+                }
+                Task::none()
+            }
+            
+            _ => Task::none(),
+        }
+    }
+    
+    pub fn view(&self) -> Element<Message> {
+        let content = column![
+            self.view_header(),
+            self.view_tabs(),
+            self.view_content(),
+            self.view_status_bar(),
+        ]
+        .spacing(10)
+        .padding(20);
+        
+        container(content)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
+    }
+}
+
+impl CimManagerApp {
+    fn view_header(&self) -> Element<Message> {
+        row![
+            text("CIM Claude Adapter Manager").size(24),
+            Space::with_width(Length::Fill),
+            self.view_connection_controls(),
+        ]
+        .align_y(iced::alignment::Vertical::Center)
+        .into()
+    }
+    
+    fn view_connection_controls(&self) -> Element<Message> {
+        row![
+            text_input("NATS URL", &self.nats_url)
+                .on_input(Message::NatsUrlChanged)
+                .width(Length::Fixed(300.0)),
+            if self.connected {
+                button("Disconnect").on_press(Message::Disconnected)
+            } else {
+                button("Connect").on_press(Message::Connect(self.nats_url.clone()))
+            },
+            if self.connected {
+                text("🟢 Connected")
+            } else {
+                text("🔴 Disconnected")
+            },
+        ]
+        .spacing(10)
+        .align_y(iced::alignment::Vertical::Center)
+        .into()
+    }
+    
+    fn view_tabs(&self) -> Element<Message> {
+        row![
+            button("Dashboard").on_press(Message::TabSelected(Tab::Dashboard)),
+            button("Conversations").on_press(Message::TabSelected(Tab::Conversations)),
+            button("Events").on_press(Message::TabSelected(Tab::Events)),
+            button("Monitoring").on_press(Message::TabSelected(Tab::Monitoring)),
+            button("CIM Expert").on_press(Message::TabSelected(Tab::CimExpert)),
+            button("Settings").on_press(Message::TabSelected(Tab::Settings)),
+        ]
+        .spacing(5)
+        .into()
+    }
+    
+    fn view_content(&self) -> Element<Message> {
+        match self.current_tab {
+            Tab::Dashboard => self.view_dashboard(),
+            Tab::Conversations => self.view_conversations(),
+            Tab::Events => self.view_events(),
+            Tab::Monitoring => self.view_monitoring(),
+            Tab::CimExpert => self.view_cim_expert(),
+            Tab::Settings => self.view_settings(),
+        }
+    }
+    
+    fn view_dashboard(&self) -> Element<Message> {
+        column![
+            text("Dashboard").size(20),
+            row![
+                column![
+                    text("System Health"),
+                    text(format!("NATS: {}", if self.health_status.nats_connected { "✅" } else { "❌" })),
+                    text(format!("Claude API: {}", if self.health_status.claude_api_available { "✅" } else { "❌" })),
+                    text(format!("Active Conversations: {}", self.health_status.active_conversations)),
+                ]
+                .spacing(5)
+                .width(Length::FillPortion(1)),
+                
+                column![
+                    text("Quick Actions"),
+                    text_input("Session ID", &self.session_id_input)
+                        .on_input(Message::SessionIdChanged),
+                    text_input("Initial Prompt", &self.prompt_input)
+                        .on_input(Message::PromptInputChanged),
+                    button("Start Conversation")
+                        .on_press(Message::StartConversation {
+                            session_id: self.session_id_input.clone(),
+                            initial_prompt: self.prompt_input.clone(),
+                        }),
+                ]
+                .spacing(5)
+                .width(Length::FillPortion(1)),
+            ]
+            .spacing(20),
+        ]
+        .spacing(10)
+        .into()
+    }
+    
+    fn view_conversations(&self) -> Element<Message> {
+        let conversations: Vec<Element<Message>> = self.conversations
+            .iter()
+            .map(|(id, aggregate)| {
+                button(text(format!("{} - {:?}", id, aggregate.state())))
+                    .on_press(Message::ConversationSelected(id.clone()))
+                    .width(Length::Fill)
+                    .into()
+            })
+            .collect();
+        
+        column![
+            text("Active Conversations").size(20),
+            column(conversations).spacing(5),
+        ]
+        .spacing(10)
+        .into()
+    }
+    
+    fn view_events(&self) -> Element<Message> {
+        let events: Vec<Element<Message>> = self.recent_events
+            .iter()
+            .take(20)
+            .map(|event_envelope| {
+                text(format!(
+                    "[{}] {:?} - {}",
+                    event_envelope.timestamp.format("%H:%M:%S"),
+                    event_envelope.event.event_type(),
+                    event_envelope.correlation_id.as_uuid()
+                ))
+                .size(12)
+                .into()
+            })
+            .collect();
+        
+        column![
+            text("Recent Events").size(20),
+            column(events).spacing(2),
+        ]
+        .spacing(10)
+        .into()
+    }
+    
+    fn view_monitoring(&self) -> Element<Message> {
+        column![
+            text("System Monitoring").size(20),
+            text(format!("Total Conversations: {}", self.system_metrics.conversations_total)),
+            text(format!("Active Conversations: {}", self.system_metrics.conversations_active)),
+            text(format!("Events Published: {}", self.system_metrics.events_published)),
+            text(format!("Events Consumed: {}", self.system_metrics.events_consumed)),
+            text(format!("API Requests: {}", self.system_metrics.api_requests_total)),
+            text(format!("Failed Requests: {}", self.system_metrics.api_requests_failed)),
+            text(format!("Avg Response Time: {:.2}ms", self.system_metrics.response_time_avg_ms)),
+        ]
+        .spacing(10)
+        .into()
+    }
+    
+    fn view_settings(&self) -> Element<Message> {
+        column![
+            text("Settings").size(20),
+            text("NATS Configuration"),
+            text_input("NATS URL", &self.nats_url)
+                .on_input(Message::NatsUrlChanged),
+            // Add more settings as needed
+        ]
+        .spacing(10)
+        .into()
+    }
+    
+    fn view_cim_expert(&self) -> Element<Message> {
+        let topic_text = format!("{:?}", self.cim_expert_selected_topic);
+        
+        if let Some(ref conversation) = self.cim_expert_conversation {
+            // Show existing conversation
+            let messages_view = conversation.messages.iter().enumerate().fold(
+                column![],
+                |col, (_i, msg)| {
+                    let role_text = match msg.role {
+                        CimExpertMessageRole::User => "You",
+                        CimExpertMessageRole::Expert => "CIM Expert",
+                        CimExpertMessageRole::System => "System",
+                    };
+                    
+                    col.push(
+                        container(
+                            column![
+                                text(format!("{}: {}", role_text, msg.timestamp.format("%H:%M:%S"))).size(12),
+                                text(&msg.content).size(14),
+                            ].spacing(5)
+                        )
+                        .padding(10)
+                    )
+                }
+            );
+            
+            column![
+                text("CIM Expert - Conversation").size(20),
+                
+                // Topic selector
+                row![
+                    text("Topic:"),
+                    button(text(topic_text.clone()))
+                        .on_press(Message::CimExpertTopicSelected(
+                            match self.cim_expert_selected_topic {
+                                CimExpertTopic::Architecture => CimExpertTopic::MathematicalFoundations,
+                                CimExpertTopic::MathematicalFoundations => CimExpertTopic::NatsPatterns,
+                                CimExpertTopic::NatsPatterns => CimExpertTopic::EventSourcing,
+                                CimExpertTopic::EventSourcing => CimExpertTopic::DomainModeling,
+                                CimExpertTopic::DomainModeling => CimExpertTopic::Implementation,
+                                CimExpertTopic::Implementation => CimExpertTopic::Troubleshooting,
+                                CimExpertTopic::Troubleshooting => CimExpertTopic::Architecture,
+                                _ => CimExpertTopic::Architecture,
+                            }
+                        )),
+                ].spacing(10),
+                
+                // Messages area
+                container(messages_view).height(Length::Fixed(400.0)),
+                
+                // Message input
+                row![
+                    text_input("Ask the CIM Expert...", &self.cim_expert_message_input)
+                        .on_input(Message::CimExpertMessageInputChanged)
+                        .on_submit(Message::CimExpertSendMessage(self.cim_expert_message_input.clone())),
+                    button("Send")
+                        .on_press(Message::CimExpertSendMessage(self.cim_expert_message_input.clone())),
+                ].spacing(10),
+                
+                button("End Conversation")
+                    .on_press(Message::CimExpertConversationReceived(
+                        CimExpertConversation {
+                            id: "".to_string(),
+                            created_at: chrono::Utc::now(),
+                            last_activity: chrono::Utc::now(),
+                            messages: vec![],
+                            context: None,
+                            user_id: None,
+                        }
+                    )),
+            ]
+            .spacing(15)
+            .into()
+        } else {
+            // Show conversation starter
+            column![
+                text("CIM Expert").size(24),
+                text("Start a conversation with the CIM Expert to learn about CIM's cognitive architecture, mathematical foundations, and implementation patterns.").size(14),
+                
+                // Context input
+                column![
+                    text("Context (optional):"),
+                    text_input("Enter domain context for your questions...", &self.cim_expert_context_input)
+                        .on_input(Message::CimExpertContextChanged),
+                ].spacing(5),
+                
+                // Topic selector
+                column![
+                    text("Initial Topic:"),
+                    row![
+                        button(text(topic_text.clone()))
+                            .on_press(Message::CimExpertTopicSelected(
+                                match self.cim_expert_selected_topic {
+                                    CimExpertTopic::Architecture => CimExpertTopic::MathematicalFoundations,
+                                    CimExpertTopic::MathematicalFoundations => CimExpertTopic::NatsPatterns,
+                                    CimExpertTopic::NatsPatterns => CimExpertTopic::EventSourcing,
+                                    CimExpertTopic::EventSourcing => CimExpertTopic::DomainModeling,
+                                    CimExpertTopic::DomainModeling => CimExpertTopic::Implementation,
+                                    CimExpertTopic::Implementation => CimExpertTopic::Troubleshooting,
+                                    CimExpertTopic::Troubleshooting => CimExpertTopic::Architecture,
+                                    _ => CimExpertTopic::Architecture,
+                                }
+                            )),
+                        text("(click to cycle through topics)"),
+                    ].spacing(10),
+                ].spacing(5),
+                
+                button("Start Conversation")
+                    .on_press(Message::CimExpertStartConversation),
+                    
+                // Available topics list
+                column![
+                    text("Available Topics:"),
+                    text("• Architecture - CIM system design and structure"),
+                    text("• Mathematical Foundations - Category Theory, Graph Theory"),
+                    text("• NATS Patterns - Event streaming and messaging"),
+                    text("• Event Sourcing - Immutable event-driven systems"),
+                    text("• Domain Modeling - DDD and aggregate design"),
+                    text("• Implementation - Practical development guidance"),
+                    text("• Troubleshooting - Problem solving and debugging"),
+                ].spacing(5),
+            ]
+            .spacing(20)
+            .into()
+        }
+    }
+    
+    fn view_status_bar(&self) -> Element<Message> {
+        if let Some(error) = &self.connection_error {
+            row![
+                text(format!("Error: {}", error)),
+                Space::with_width(Length::Fill),
+                button("Dismiss").on_press(Message::ErrorDismissed),
+            ]
+            .align_y(iced::alignment::Vertical::Center)
+            .into()
+        } else if let Some(error) = &self.error_message {
+            row![
+                text(format!("Error: {}", error)),
+                Space::with_width(Length::Fill),
+                button("Dismiss").on_press(Message::ErrorDismissed),
+            ]
+            .align_y(iced::alignment::Vertical::Center)
+            .into()
+        } else {
+            row![
+                text(format!("Last Health Check: {}", 
+                    self.health_status.last_check.format("%H:%M:%S"))),
+                Space::with_width(Length::Fill),
+                text(format!("Conversations: {}", self.conversations.len())),
+            ]
+            .align_y(iced::alignment::Vertical::Center)
+            .into()
+        }
+    }
+    
+    // CIM Expert helper methods
+    fn cim_expert_start_conversation(&mut self) -> Task<Message> {
+        let conversation_id = uuid::Uuid::new_v4().to_string();
+        let now = chrono::Utc::now();
+        
+        let conversation = CimExpertConversation {
+            id: conversation_id.clone(),
+            created_at: now,
+            last_activity: now,
+            messages: vec![
+                CimExpertMessage {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    role: CimExpertMessageRole::System,
+                    content: "Welcome to CIM Expert! I'm here to help you understand CIM's cognitive architecture - including Conceptual Spaces, memory engram patterns, graph-based workflows, and emergent intelligence. What would you like to explore?".to_string(),
+                    timestamp: now,
+                    topic: None,
+                }
+            ],
+            context: if self.cim_expert_context_input.is_empty() { 
+                None 
+            } else { 
+                Some(self.cim_expert_context_input.clone()) 
+            },
+            user_id: None,
+        };
+        
+        self.cim_expert_conversation = Some(conversation);
+        self.cim_expert_context_input.clear();
+        
+        Task::none()
+    }
+    
+    fn cim_expert_send_message(&mut self, message: String) -> Task<Message> {
+        if let Some(ref mut conversation) = self.cim_expert_conversation {
+            // Add user message
+            conversation.messages.push(CimExpertMessage {
+                id: uuid::Uuid::new_v4().to_string(),
+                role: CimExpertMessageRole::User,
+                content: message.clone(),
+                timestamp: chrono::Utc::now(),
+                topic: Some(self.cim_expert_selected_topic.clone()),
+            });
+            
+            // Clear input
+            self.cim_expert_message_input.clear();
+            
+            // Simulate expert response (in a real implementation, this would call the CimExpertService)
+            let response_id = uuid::Uuid::new_v4().to_string();
+            let mock_response = self.generate_mock_expert_response(&message);
+            
+            Task::perform(
+                async move {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                    (response_id, mock_response)
+                },
+                |(msg_id, response)| Message::CimExpertResponseReceived(msg_id, response)
+            )
+        } else {
+            Task::none()
+        }
+    }
+    
+    fn generate_mock_expert_response(&self, user_message: &str) -> String {
+        // This is a mock response generator - in real implementation, this would use CimExpertService
+        match self.cim_expert_selected_topic {
+            CimExpertTopic::Architecture => {
+                format!("Regarding CIM architecture and your question about '{}': CIM is built on a foundation of Category Theory and Graph Theory, enabling composable information processing through structure-preserving mappings and type-safe transformations.", user_message)
+            },
+            CimExpertTopic::MathematicalFoundations => {
+                format!("From a mathematical perspective on '{}': CIM leverages Category Theory for composable transformations, Topology for continuous mappings, and Information Theory for optimal encoding strategies.", user_message)
+            },
+            CimExpertTopic::NatsPatterns => {
+                format!("Regarding NATS patterns and '{}': CIM uses NATS JetStream for persistent event sourcing, with subject hierarchies that mirror domain boundaries and enable efficient message routing.", user_message)
+            },
+            CimExpertTopic::EventSourcing => {
+                format!("On event sourcing and '{}': CIM treats all state changes as immutable events, enabling perfect audit trails, time-travel debugging, and deterministic replay of system state.", user_message)
+            },
+            CimExpertTopic::DomainModeling => {
+                format!("For domain modeling with '{}': CIM uses DDD principles with event-driven aggregates, ensuring each domain maintains clear boundaries while enabling cross-domain communication through well-defined interfaces.", user_message)
+            },
+            _ => {
+                format!("Thank you for your question about '{}'. This is a complex topic that touches on CIM's cognitive architecture. Let me explain the key concepts and how they relate to your inquiry...", user_message)
+            }
+        }
+    }
+}
+
+impl Default for CimManagerApp {
+    fn default() -> Self {
+        let (app, _task) = Self::new();
+        app
+    }
+}

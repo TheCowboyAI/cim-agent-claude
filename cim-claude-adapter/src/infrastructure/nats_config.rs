@@ -515,8 +515,8 @@ impl NatsConfiguration {
     }
 
     /// Generate the complete YAML configuration for NATS
-    pub fn to_yaml(&self) -> Result<String, serde_yaml::Error> {
-        serde_yaml::to_string(self)
+    pub fn to_yaml(&self) -> Result<String, serde_yml::Error> {
+        serde_yml::to_string(self)
     }
 
     /// Generate configuration for a specific environment

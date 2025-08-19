@@ -10,3 +10,6 @@
 
 pub mod claude_adapter_service;
 pub mod cim_expert_service;
+pub mod conversation_service;
+
+pub use conversation_service::ConversationService;

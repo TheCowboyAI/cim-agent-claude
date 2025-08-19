@@ -104,6 +104,18 @@ impl DomainEvent {
             } => conversation_id,
         }
     }
+    
+    /// Get the event type as a string for display and logging
+    pub fn event_type(&self) -> &'static str {
+        match self {
+            DomainEvent::ConversationStarted { .. } => "ConversationStarted",
+            DomainEvent::PromptSent { .. } => "PromptSent",
+            DomainEvent::ResponseReceived { .. } => "ResponseReceived",
+            DomainEvent::ConversationEnded { .. } => "ConversationEnded",
+            DomainEvent::RateLimitExceeded { .. } => "RateLimitExceeded",
+            DomainEvent::ClaudeApiErrorOccurred { .. } => "ClaudeApiErrorOccurred",
+        }
+    }
 }
 
 /// Conversation end reasons

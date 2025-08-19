@@ -4,50 +4,62 @@ version = "0.1.0"
 edition = "2021"
 description = "CIM hexagonal adapter for Claude API to NATS translation"
 
+[[bin]]
+name = "cim-claude-adapter"
+path = "src/main.rs"
+required-features = ["native"]
+
+
+
 [dependencies]
 # Core async runtime
-tokio = { version = "1.0", features = ["full"] }
+tokio = { version = "1.47", features = ["full"] }
 async-trait = "0.1"
 futures = "0.3"
 
 # NATS integration
-async-nats = "0.33"
+async-nats = "0.42"
 bytes = "1.0"
 
 # HTTP and Claude API client
-reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
-axum = { version = "0.7", features = ["json", "ws"] }
-tower = { version = "0.4", features = ["timeout", "limit"] }
-tower-http = { version = "0.5", features = ["cors", "trace", "fs"] }
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
+
+
 
 # Serialization and data handling
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-serde_yaml = "0.9"
-toml = "0.8"
+serde_yml = "0.0.12"
+toml = "0.9"
 uuid = { version = "1.0", features = ["v4", "serde"] }
 
 # Time and utilities
 chrono = { version = "0.4", features = ["serde"] }
 url = "2.0"
-thiserror = "1.0"
+thiserror = "2.0"
 anyhow = "1.0"
 
 # Logging and observability
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-metrics = "0.21"
-metrics-prometheus = "0.6"
+metrics = "0.24"
+metrics-prometheus = "0.11"
 
 # Configuration
-config = "0.14"
+config = "0.15"
 
 # Rate limiting and circuit breaking
-governor = "0.6"
+governor = "0.10"
 failsafe = "1.0"
+
+# Features for different build targets
+[features]
+default = ["native"]
+native = []
 
 [dev-dependencies]
 tempfile = "3.0"
-testcontainers = "0.15"
+testcontainers = "0.25"
 serial_test = "3.0"
 md5 = "0.7"

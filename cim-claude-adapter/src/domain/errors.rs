@@ -78,6 +78,12 @@ pub enum InfrastructureError {
 
     #[error("Network error: {0}")]
     Network(String),
+
+    #[error("NATS KV store error: {0}")]
+    NatsKvStore(String),
+
+    #[error("Deserialization error: {0}")]
+    Deserialization(String),
 }
 
 /// Application service errors
@@ -103,6 +109,9 @@ pub enum ApplicationError {
 
     #[error("Service unavailable: {reason}")]
     ServiceUnavailable { reason: String },
+
+    #[error("Optimistic locking failed - resource was modified by another process")]
+    OptimisticLockingFailed,
 }
 
 impl From<serde_json::Error> for InfrastructureError {
