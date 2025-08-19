@@ -444,10 +444,10 @@ mod tests {
         assert_eq!(cb.get_state().await, CircuitBreakerState::Closed);
         
         // Simulate failures
-        let _ = cb.execute(|| Err(ApplicationError::ServiceUnavailable { 
+        let _: Result<(), _> = cb.execute(|| Err(ApplicationError::ServiceUnavailable { 
             reason: "test".to_string() 
         })).await;
-        let _ = cb.execute(|| Err(ApplicationError::ServiceUnavailable { 
+        let _: Result<(), _> = cb.execute(|| Err(ApplicationError::ServiceUnavailable { 
             reason: "test".to_string() 
         })).await;
         
