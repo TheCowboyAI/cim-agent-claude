@@ -378,6 +378,7 @@ impl GuiNatsClient {
     
     /// Create a future for sending a command using NATS CLI (most reliable)
     pub fn send_command_future(command_envelope: CommandEnvelope) -> impl std::future::Future<Output = Result<(), String>> + Send {
+        // Use blocking task to avoid Tokio runtime issues with Iced
         async move {
             let command_type = match &command_envelope.command {
                 DomainCommand::StartConversation { .. } => "start_conversation",
@@ -391,24 +392,26 @@ impl GuiNatsClient {
             
             info!("Publishing command to {} via NATS CLI", subject);
             
-            // Use NATS CLI for maximum reliability
-            let output = tokio::process::Command::new("nats")
+            // Execute synchronously - this will block but it's fast
+            match std::process::Command::new("nats")
                 .arg("pub")
                 .arg(&subject)
                 .arg(&payload)
                 .output()
-                .await
-                .map_err(|e| format!("Failed to execute nats command: {}", e))?;
-            
-            if output.status.success() {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                info!("Successfully published command to {} via CLI: {}", subject, stdout.trim());
-                Ok(())
-            } else {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                error!("NATS CLI publish failed - stderr: {}, stdout: {}, status: {:?}", stderr, stdout, output.status);
-                Err(format!("NATS CLI failed: {}", if stderr.trim().is_empty() { "unknown error" } else { stderr.trim() }))
+            {
+                Ok(output) => {
+                    if output.status.success() {
+                        let stdout = String::from_utf8_lossy(&output.stdout);
+                        info!("Successfully published command to {} via CLI: {}", subject, stdout.trim());
+                        Ok(())
+                    } else {
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+                        let stdout = String::from_utf8_lossy(&output.stdout);
+                        error!("NATS CLI publish failed - stderr: {}, stdout: {}, status: {:?}", stderr, stdout, output.status);
+                        Err(format!("NATS CLI failed: {}", if stderr.trim().is_empty() { "unknown error" } else { stderr.trim() }))
+                    }
+                }
+                Err(e) => Err(format!("Failed to execute nats command: {}", e)),
             }
         }
     }
