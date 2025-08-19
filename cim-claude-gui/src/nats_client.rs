@@ -73,14 +73,15 @@ impl GuiNatsClient {
             let client_ref = self.client.clone();
             let jetstream_ref = self.jetstream.clone();
             
-            // Create a task to handle the NATS connection
+            // Create a task to handle the NATS connection with proper error handling
             let connect_task = async move {
+                info!("Attempting to connect to NATS at {}", nats_url);
                 match async_nats::connect(&nats_url).await {
                     Ok(client) => {
-                        info!("Connected to NATS at {}", nats_url);
+                        info!("Successfully connected to NATS at {}", nats_url);
                         let jetstream = jetstream::new(client.clone());
                         
-                        // Store the client and jetstream instances
+                        // Store the client and jetstream instances BEFORE sending Connected message
                         {
                             let mut client_lock = client_ref.lock().unwrap();
                             *client_lock = Some(client.clone());
@@ -90,7 +91,9 @@ impl GuiNatsClient {
                             *jetstream_lock = Some(jetstream.clone());
                         }
                         
+                        // Send connected message only after client is stored
                         let _ = tx.send(Message::Connected);
+                        info!("NATS client stored and Connected message sent");
                         
                         // Start event subscription task
                         let subscription_tx = tx.clone();
@@ -106,6 +109,16 @@ impl GuiNatsClient {
                         tokio::spawn(async move {
                             Self::monitor_health(health_client, health_tx).await;
                         });
+                        
+                        // Keep the connection alive
+                        loop {
+                            if !matches!(client.connection_state(), async_nats::connection::State::Connected) {
+                                warn!("NATS connection lost");
+                                let _ = tx.send(Message::Disconnected);
+                                break;
+                            }
+                            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                        }
                     }
                     Err(e) => {
                         error!("Failed to connect to NATS: {}", e);
@@ -114,7 +127,7 @@ impl GuiNatsClient {
                 }
             };
             
-            // Schedule the connection task to run on the current runtime
+            // Schedule the connection task to run
             tokio::spawn(connect_task);
             
             // Return stream of messages from the receiver
