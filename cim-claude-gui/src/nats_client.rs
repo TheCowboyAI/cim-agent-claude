@@ -431,55 +431,51 @@ impl GuiNatsClient {
         }
     }
     
-    /// Send a command to the CIM system
-    pub async fn send_command(&self, command_envelope: CommandEnvelope) -> Result<(), String> {
-        #[cfg(target_arch = "wasm32")]
-        {
-            self.websocket_client.send_command(command_envelope).await
-        }
-        
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            // Extract client from the mutex guard before the async operation
-            let client_option = {
-                let client_guard = self.client.lock().unwrap();
-                client_guard.clone()
-            };
-            
-            if let Some(client) = client_option {
-                // Check connection state first
-                if !matches!(client.connection_state(), async_nats::connection::State::Connected) {
-                    return Err("NATS connection lost - please reconnect".to_string());
-                }
-                
-                let command_type = match &command_envelope.command {
-                    DomainCommand::StartConversation { .. } => "start_conversation",
-                    DomainCommand::SendPrompt { .. } => "send_prompt", 
-                    DomainCommand::EndConversation { .. } => "end_conversation",
-                };
-                let subject = format!("cim.claude.command.{}", command_type);
-                
-                let payload = serde_json::to_vec(&command_envelope)
-                    .map_err(|e| format!("Serialization failed: {}", e))?;
-                
-                match client.publish(subject, payload.into()).await {
-                    Ok(_) => {
-                        info!("Successfully published command to {}", subject);
-                        Ok(())
+    /// Create a future for sending a command that can be used with Iced's Command::perform
+    pub fn send_command_future(command_envelope: CommandEnvelope) -> impl std::future::Future<Output = Result<(), String>> + Send {
+        async move {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                match async_nats::connect("nats://localhost:4222").await {
+                    Ok(client) => {
+                        let command_type = match &command_envelope.command {
+                            DomainCommand::StartConversation { .. } => "start_conversation",
+                            DomainCommand::SendPrompt { .. } => "send_prompt", 
+                            DomainCommand::EndConversation { .. } => "end_conversation",
+                        };
+                        let subject = format!("cim.claude.command.{}", command_type);
+                        
+                        let payload = serde_json::to_vec(&command_envelope)
+                            .map_err(|e| format!("Serialization failed: {}", e))?;
+                        
+                        match client.publish(subject, payload.into()).await {
+                            Ok(_) => {
+                                info!("Successfully published command to {}", subject);
+                                Ok(())
+                            }
+                            Err(e) => {
+                                error!("NATS publish failed: {}", e);
+                                Err(format!("NATS publish failed: {}", e))
+                            }
+                        }
                     }
                     Err(e) => {
-                        error!("NATS publish failed: {}", e);
-                        // Clear the connection on failure
-                        {
-                            let mut client_guard = self.client.lock().unwrap();
-                            *client_guard = None;
-                        }
-                        Err(format!("NATS publish failed: {} - please reconnect", e))
+                        error!("Failed to connect to NATS: {}", e);
+                        Err(format!("NATS connection failed: {}", e))
                     }
                 }
-            } else {
-                Err("Not connected to NATS".to_string())
+            }
+            
+            #[cfg(target_arch = "wasm32")]
+            {
+                // WebSocket implementation would go here
+                Err("WebSocket NATS not implemented".to_string())
             }
         }
+    }
+
+    /// Send a command to the CIM system (deprecated - use send_command_future with Command::perform)
+    pub async fn send_command(&self, command_envelope: CommandEnvelope) -> Result<(), String> {
+        Self::send_command_future(command_envelope).await
     }
 }

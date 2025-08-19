@@ -149,11 +149,10 @@ impl CimManagerApp {
                     
                     let command_envelope = command.with_metadata(correlation_id);
                     
-                    let client = self.nats_client.clone();
                     Task::perform(
-                        async move { client.send_command(command_envelope).await },
+                        GuiNatsClient::send_command_future(command_envelope),
                         |result| match result {
-                            Ok(_) => Message::Connected, // Placeholder
+                            Ok(_) => Message::Connected, // Success message
                             Err(e) => Message::ErrorOccurred(e),
                         }
                     )
