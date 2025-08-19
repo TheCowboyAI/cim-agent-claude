@@ -13,7 +13,7 @@ let
 
 in {
   options.services.cim-agent-claude = {
-    enable = mkEnableOption "CIM Agent Claude service";
+    enable = mkEnableOption "CIM Agent Claude service - Event-driven Claude AI integration. Maintained by Cowboy AI, LLC <info@thecowboy.ai>";
 
     package = mkOption {
       type = types.package;
@@ -46,6 +46,26 @@ in {
           type = types.str;
           default = "cim.claude";
           description = "NATS subject prefix for CIM Claude events";
+        };
+        
+        jetstream = {
+          maxMemoryStore = mkOption {
+            type = types.int;
+            default = 1073741824;  # 1GB in bytes
+            description = "Maximum JetStream memory store size in bytes";
+          };
+          
+          maxFileStore = mkOption {
+            type = types.int;
+            default = 10737418240;  # 10GB in bytes
+            description = "Maximum JetStream file store size in bytes";
+          };
+          
+          storeDir = mkOption {
+            type = types.str;
+            default = "/var/lib/nats/jetstream";
+            description = "JetStream store directory path";
+          };
         };
       };
 
@@ -380,9 +400,9 @@ in {
         };
         # JetStream configuration for persistent storage
         jetstream = {
-          store_dir = "/var/lib/nats/jetstream";
-          max_memory_store = "1GB";
-          max_file_store = "10GB";
+          store_dir = cfg.adapter.nats.jetstream.storeDir;
+          max_memory_store = cfg.adapter.nats.jetstream.maxMemoryStore;
+          max_file_store = cfg.adapter.nats.jetstream.maxFileStore;
         };
       };
     };
@@ -392,10 +412,5 @@ in {
       (mkIf cfg.adapter.enable [ cfg.package ])
       (mkIf cfg.web.enable [ cfg.web.package ])
     ];
-  };
-
-  meta = {
-    maintainers = [ "Cowboy AI, LLC <info@thecowboy.ai>" ];
-    description = "NixOS module for CIM Agent Claude - Event-driven Claude AI integration";
   };
 }
