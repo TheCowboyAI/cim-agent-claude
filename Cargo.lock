@@ -837,6 +837,7 @@ dependencies = [
  "gloo-net",
  "gloo-timers",
  "iced",
+ "iced_modern_theme",
  "js-sys",
  "log",
  "serde",
@@ -2548,6 +2549,16 @@ dependencies = [
  "rustc-hash 2.1.1",
  "thiserror 1.0.69",
  "unicode-segmentation",
+]
+
+[[package]]
+name = "iced_modern_theme"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7911a53ed0a48ddac088f7b99a486d85a8368d9e497dc754cae524b8ce49d3b9"
+dependencies = [
+ "iced",
+ "palette",
 ]
 
 [[package]]

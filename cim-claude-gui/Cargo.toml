@@ -29,6 +29,7 @@ bytes = "1.0"
 
 # GUI with Iced (TEA architecture for NATS-driven management) 
 iced = { version = "0.13.1", features = ["advanced", "async-std", "canvas", "debug", "image", "lazy", "markdown", "multi-window", "svg", "system", "web-colors"] }
+iced_modern_theme = "0.1.6"
 
 # Serialization and data handling
 serde = { version = "1.0", features = ["derive"] }

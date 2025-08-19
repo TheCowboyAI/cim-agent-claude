@@ -77,6 +77,9 @@ pub enum Message {
     CimExpertConversationReceived(CimExpertConversation),
     CimExpertResponseReceived(String, String), // message_id, response
     
+    // Theme Management
+    ThemeToggled,
+    
     // Error Handling
     ErrorOccurred(String),
     ErrorDismissed,

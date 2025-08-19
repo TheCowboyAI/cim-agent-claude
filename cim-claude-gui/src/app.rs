@@ -4,10 +4,14 @@
  */
 
 use iced::{
-    widget::{button, column, container, row, text, text_input, Space},
-    Element, Length, Task,
+    widget::{button, column, container, row, text, text_input, Space, scrollable},
+    Element, Length, Task, Padding,
 };
 use std::collections::HashMap;
+
+// Use modern theme system for beautiful styling
+use iced::Theme;
+use iced_modern_theme::Modern;
 
 use cim_claude_adapter::{
     domain::{commands::{Command as DomainCommand, *}, events::*, value_objects::*, ConversationAggregate},
@@ -19,7 +23,6 @@ use crate::{
 use cim_claude_adapter::CimExpertTopic;
 
 /// Main CIM Manager Application State
-#[derive(Debug)]
 pub struct CimManagerApp {
     // Connection State
     nats_client: GuiNatsClient,
@@ -33,6 +36,10 @@ pub struct CimManagerApp {
     session_id_input: String,
     selected_conversation: Option<String>,
     error_message: Option<String>,
+    
+    // Theme State
+    theme: Theme,
+    dark_mode: bool,
     
     // Domain State
     conversations: HashMap<String, ConversationAggregate>,
@@ -61,6 +68,9 @@ impl CimManagerApp {
             selected_conversation: None,
             error_message: None,
             
+            theme: Theme::Light,
+            dark_mode: false,
+            
             conversations: HashMap::new(),
             recent_events: Vec::new(),
             health_status: HealthStatus::default(),
@@ -78,6 +88,10 @@ impl CimManagerApp {
     
     pub fn title(&self) -> String {
         "CIM Claude Adapter Manager".to_string()
+    }
+    
+    pub fn theme(&self) -> Theme {
+        self.theme.clone()
     }
     
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -287,6 +301,12 @@ impl CimManagerApp {
                 Task::none()
             }
             
+            Message::ThemeToggled => {
+                self.dark_mode = !self.dark_mode;
+                self.theme = if self.dark_mode { Theme::Dark } else { Theme::Light };
+                Task::none()
+            }
+            
             _ => Task::none(),
         }
     }
@@ -298,58 +318,129 @@ impl CimManagerApp {
             self.view_content(),
             self.view_status_bar(),
         ]
-        .spacing(10)
-        .padding(20);
+        .spacing(16)
+        .padding(24);
         
         container(content)
             .width(Length::Fill)
             .height(Length::Fill)
+            .style(Modern::floating_container())
             .into()
     }
 }
 
 impl CimManagerApp {
     fn view_header(&self) -> Element<Message> {
-        row![
-            text("CIM Claude Adapter Manager").size(24),
+        let theme_icon = if self.dark_mode { "☀️" } else { "🌙" };
+        
+        let header_content = row![
+            text("CIM Claude Adapter Manager").size(28),
             Space::with_width(Length::Fill),
+            button(text(theme_icon).size(20))
+                .on_press(Message::ThemeToggled)
+                .style(Modern::blue_tinted_button()),
+            Space::with_width(16),
             self.view_connection_controls(),
         ]
         .align_y(iced::alignment::Vertical::Center)
-        .into()
+        .spacing(12);
+        
+        container(header_content)
+            .padding(Padding::from([16, 24]))
+            .width(Length::Fill)
+            .style(Modern::card_container())
+            .into()
     }
     
     fn view_connection_controls(&self) -> Element<Message> {
-        row![
+        let status_text = if self.connected {
+            text("🟢 Connected")
+        } else {
+            text("🔴 Disconnected")
+        };
+        
+        let connect_button = if self.connected {
+            button(text("Disconnect"))
+                .on_press(Message::Disconnected)
+                .style(Modern::secondary_button())
+        } else {
+            button(text("Connect"))
+                .on_press(Message::Connect(self.nats_url.clone()))
+                .style(Modern::primary_button())
+        };
+        
+        container(row![
             text_input("NATS URL", &self.nats_url)
                 .on_input(Message::NatsUrlChanged)
-                .width(Length::Fixed(300.0)),
-            if self.connected {
-                button("Disconnect").on_press(Message::Disconnected)
-            } else {
-                button("Connect").on_press(Message::Connect(self.nats_url.clone()))
-            },
-            if self.connected {
-                text("🟢 Connected")
-            } else {
-                text("🔴 Disconnected")
-            },
+                .width(Length::Fixed(320.0)),
+            connect_button,
+            status_text,
         ]
-        .spacing(10)
-        .align_y(iced::alignment::Vertical::Center)
+        .spacing(12)
+        .align_y(iced::alignment::Vertical::Center))
+        .padding(Padding::from([8, 12]))
+        .style(Modern::card_container())
         .into()
     }
     
     fn view_tabs(&self) -> Element<Message> {
         row![
-            button("Dashboard").on_press(Message::TabSelected(Tab::Dashboard)),
-            button("Conversations").on_press(Message::TabSelected(Tab::Conversations)),
-            button("Events").on_press(Message::TabSelected(Tab::Events)),
-            button("Monitoring").on_press(Message::TabSelected(Tab::Monitoring)),
-            button("CIM Expert").on_press(Message::TabSelected(Tab::CimExpert)),
-            button("Settings").on_press(Message::TabSelected(Tab::Settings)),
+            if self.current_tab == Tab::Dashboard {
+                button("Dashboard")
+                    .on_press(Message::TabSelected(Tab::Dashboard))
+                    .style(Modern::primary_button())
+            } else {
+                button("Dashboard")
+                    .on_press(Message::TabSelected(Tab::Dashboard))
+                    .style(Modern::blue_tinted_button())
+            },
+            if self.current_tab == Tab::Conversations {
+                button("Conversations")
+                    .on_press(Message::TabSelected(Tab::Conversations))
+                    .style(Modern::primary_button())
+            } else {
+                button("Conversations")
+                    .on_press(Message::TabSelected(Tab::Conversations))
+                    .style(Modern::blue_tinted_button())
+            },
+            if self.current_tab == Tab::Events {
+                button("Events")
+                    .on_press(Message::TabSelected(Tab::Events))
+                    .style(Modern::primary_button())
+            } else {
+                button("Events")
+                    .on_press(Message::TabSelected(Tab::Events))
+                    .style(Modern::blue_tinted_button())
+            },
+            if self.current_tab == Tab::Monitoring {
+                button("Monitoring")
+                    .on_press(Message::TabSelected(Tab::Monitoring))
+                    .style(Modern::primary_button())
+            } else {
+                button("Monitoring")
+                    .on_press(Message::TabSelected(Tab::Monitoring))
+                    .style(Modern::blue_tinted_button())
+            },
+            if self.current_tab == Tab::CimExpert {
+                button("CIM Expert")
+                    .on_press(Message::TabSelected(Tab::CimExpert))
+                    .style(Modern::primary_button())
+            } else {
+                button("CIM Expert")
+                    .on_press(Message::TabSelected(Tab::CimExpert))
+                    .style(Modern::blue_tinted_button())
+            },
+            if self.current_tab == Tab::Settings {
+                button("Settings")
+                    .on_press(Message::TabSelected(Tab::Settings))
+                    .style(Modern::primary_button())
+            } else {
+                button("Settings")
+                    .on_press(Message::TabSelected(Tab::Settings))
+                    .style(Modern::blue_tinted_button())
+            },
         ]
-        .spacing(5)
+        .spacing(12)
         .into()
     }
     
@@ -373,6 +464,7 @@ impl CimManagerApp {
                     text(format!("NATS: {}", if self.health_status.nats_connected { "✅" } else { "❌" })),
                     text(format!("Claude API: {}", if self.health_status.claude_api_available { "✅" } else { "❌" })),
                     text(format!("Active Conversations: {}", self.health_status.active_conversations)),
+                    text(format!("Events Processed: {}", self.health_status.events_processed)),
                 ]
                 .spacing(5)
                 .width(Length::FillPortion(1)),
@@ -383,11 +475,18 @@ impl CimManagerApp {
                         .on_input(Message::SessionIdChanged),
                     text_input("Initial Prompt", &self.prompt_input)
                         .on_input(Message::PromptInputChanged),
-                    button("Start Conversation")
+                    button("🚀 Start Conversation")
                         .on_press(Message::StartConversation {
                             session_id: self.session_id_input.clone(),
                             initial_prompt: self.prompt_input.clone(),
-                        }),
+                        })
+                        .style(Modern::primary_button()),
+                    button("📊 Refresh Health")
+                        .on_press(Message::HealthCheckRequested)
+                        .style(Modern::secondary_button()),
+                    button("🔄 Reconnect NATS")
+                        .on_press(Message::Connect(self.nats_url.clone()))
+                        .style(Modern::secondary_button()),
                 ]
                 .spacing(5)
                 .width(Length::FillPortion(1)),

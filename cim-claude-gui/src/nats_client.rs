@@ -65,11 +65,11 @@ impl GuiNatsClient {
         
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let (tx, mut rx) = mpsc::unbounded_channel();
+            let (tx, rx) = mpsc::unbounded_channel();
             self.event_sender = Some(tx.clone());
             
-            // Spawn connection task
-            tokio::spawn(async move {
+            // Create a task to handle the NATS connection
+            let connect_task = async move {
                 match async_nats::connect(&nats_url).await {
                     Ok(client) => {
                         info!("Connected to NATS at {}", nats_url);
@@ -77,17 +77,32 @@ impl GuiNatsClient {
                         
                         let jetstream = jetstream::new(client.clone());
                         
-                        // Spawn event subscription task
-                        Self::subscribe_to_events(client.clone(), jetstream.clone(), tx.clone()).await;
+                        // Start event subscription task
+                        let subscription_tx = tx.clone();
+                        let sub_client = client.clone();
+                        let sub_jetstream = jetstream.clone();
+                        tokio::spawn(async move {
+                            Self::subscribe_to_events(sub_client, sub_jetstream, subscription_tx).await;
+                        });
                         
-                        // Spawn health monitoring task
-                        Self::monitor_health(client, tx.clone()).await;
+                        // Start health monitoring task
+                        let health_tx = tx.clone();
+                        let health_client = client.clone();
+                        tokio::spawn(async move {
+                            Self::monitor_health(health_client, health_tx).await;
+                        });
                     }
                     Err(e) => {
                         error!("Failed to connect to NATS: {}", e);
                         let _ = tx.send(Message::ConnectionError(e.to_string()));
                     }
                 }
+            };
+            
+            // Schedule the connection task to run
+            std::thread::spawn(|| {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(connect_task);
             });
             
             // Return stream of messages from the receiver
