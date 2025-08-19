@@ -56,79 +56,21 @@ impl GuiNatsClient {
         }
     }
     
-    /// Connect to NATS and return a stream of messages
-    pub fn connect(&mut self, nats_url: String) -> BoxStream<'static, Message> {
+    /// Connect to NATS - simplified version that doesn't maintain persistent connections
+    pub fn connect(&mut self, _nats_url: String) -> BoxStream<'static, Message> {
         #[cfg(target_arch = "wasm32")]
         {
             // Use WebSocket client for WASM builds
-            self.websocket_client.connect(nats_url)
+            self.websocket_client.connect(_nats_url)
         }
         
         #[cfg(not(target_arch = "wasm32"))]
         {
             let (tx, rx) = mpsc::unbounded_channel();
-            self.event_sender = Some(tx.clone());
             
-            // Clone the Arc references for the async task
-            let client_ref = self.client.clone();
-            let jetstream_ref = self.jetstream.clone();
-            
-            // Create a task to handle the NATS connection with proper error handling
-            let connect_task = async move {
-                info!("Attempting to connect to NATS at {}", nats_url);
-                match async_nats::connect(&nats_url).await {
-                    Ok(client) => {
-                        info!("Successfully connected to NATS at {}", nats_url);
-                        let jetstream = jetstream::new(client.clone());
-                        
-                        // Store the client and jetstream instances BEFORE sending Connected message
-                        {
-                            let mut client_lock = client_ref.lock().unwrap();
-                            *client_lock = Some(client.clone());
-                        }
-                        {
-                            let mut jetstream_lock = jetstream_ref.lock().unwrap();
-                            *jetstream_lock = Some(jetstream.clone());
-                        }
-                        
-                        // Send connected message only after client is stored
-                        let _ = tx.send(Message::Connected);
-                        info!("NATS client stored and Connected message sent");
-                        
-                        // Start event subscription task
-                        let subscription_tx = tx.clone();
-                        let sub_client = client.clone();
-                        let sub_jetstream = jetstream.clone();
-                        tokio::spawn(async move {
-                            Self::subscribe_to_events(sub_client, sub_jetstream, subscription_tx).await;
-                        });
-                        
-                        // Start health monitoring task
-                        let health_tx = tx.clone();
-                        let health_client = client.clone();
-                        tokio::spawn(async move {
-                            Self::monitor_health(health_client, health_tx).await;
-                        });
-                        
-                        // Keep the connection alive
-                        loop {
-                            if !matches!(client.connection_state(), async_nats::connection::State::Connected) {
-                                warn!("NATS connection lost");
-                                let _ = tx.send(Message::Disconnected);
-                                break;
-                            }
-                            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                        }
-                    }
-                    Err(e) => {
-                        error!("Failed to connect to NATS: {}", e);
-                        let _ = tx.send(Message::ConnectionError(e.to_string()));
-                    }
-                }
-            };
-            
-            // Schedule the connection task to run
-            tokio::spawn(connect_task);
+            // Just send Connected immediately - no persistent connection needed
+            let _ = tx.send(Message::Connected);
+            info!("GUI NATS client initialized (command-only mode)");
             
             // Return stream of messages from the receiver
             Box::pin(stream::unfold(rx, |mut rx| async move {
