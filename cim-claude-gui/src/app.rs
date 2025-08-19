@@ -18,7 +18,7 @@ use cim_claude_adapter::{
 };
 use crate::{
     messages::{Message, Tab, HealthStatus, SystemMetrics, CimExpertConversation, CimExpertMessage, CimExpertMessageRole},
-    nats_client::GuiNatsClient,
+    nats_client::{GuiNatsClient, NatsComponent},
 };
 use cim_claude_adapter::CimExpertTopic;
 
@@ -94,6 +94,10 @@ impl CimManagerApp {
         self.theme.clone()
     }
     
+    pub fn subscription(&self) -> iced::Subscription<Message> {
+        crate::nats_client::events_subscription()
+    }
+    
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Connect(url) => {
@@ -150,7 +154,7 @@ impl CimManagerApp {
                     let command_envelope = command.with_metadata(correlation_id);
                     
                     Task::perform(
-                        GuiNatsClient::send_command_future(command_envelope),
+                        NatsComponent::publish_command(command_envelope),
                         |result| match result {
                             Ok(_) => Message::Connected, // Success message
                             Err(e) => Message::ErrorOccurred(e),

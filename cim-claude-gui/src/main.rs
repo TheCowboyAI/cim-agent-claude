@@ -19,6 +19,7 @@ fn main() -> iced::Result {
         CimManagerApp::update,
         CimManagerApp::view
     )
+    .subscription(CimManagerApp::subscription)
     .theme(CimManagerApp::theme)
     .run_with(CimManagerApp::new)
 }
