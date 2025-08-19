@@ -408,18 +408,22 @@ impl GuiNatsClient {
                 .map_err(|e| format!("Failed to execute nats command: {}", e))?;
             
             if output.status.success() {
-                info!("Successfully published command to {} via CLI", subject);
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                info!("Successfully published command to {} via CLI: {}", subject, stdout.trim());
                 Ok(())
             } else {
-                let error = String::from_utf8_lossy(&output.stderr);
-                error!("NATS CLI publish failed: {}", error);
-                Err(format!("NATS publish failed: {}", error.trim()))
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                error!("NATS CLI publish failed - stderr: {}, stdout: {}, status: {:?}", stderr, stdout, output.status);
+                Err(format!("NATS CLI failed: {}", if stderr.trim().is_empty() { "unknown error" } else { stderr.trim() }))
             }
         }
     }
 
     /// Send a command to the CIM system (deprecated - use send_command_future with Command::perform)
     pub async fn send_command(&self, command_envelope: CommandEnvelope) -> Result<(), String> {
-        Self::send_command_future(command_envelope).await
+        // This method is deprecated and should not be called
+        error!("Deprecated send_command method called - should use send_command_future");
+        Err("Deprecated method called - use send_command_future".to_string())
     }
 }
