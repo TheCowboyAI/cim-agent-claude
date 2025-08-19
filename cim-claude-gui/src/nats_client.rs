@@ -75,13 +75,6 @@ impl GuiNatsClient {
             let _ = tx.send(Message::Connected);
             info!("GUI NATS client initialized (command-only mode)");
             
-            // Keep a background task alive to prevent channel from closing
-            tokio::spawn(async move {
-                loop {
-                    tokio::time::sleep(std::time::Duration::from_secs(60)).await;
-                }
-            });
-            
             // Return stream of messages from the receiver
             Box::pin(stream::unfold(rx, |mut rx| async move {
                 rx.recv().await.map(|message| (message, rx))
