@@ -18,7 +18,7 @@ async-trait = "0.1"
 futures = "0.3"
 
 # NATS integration
-async-nats = "0.42"
+async-nats = "0.42.0"
 bytes = "1.0"
 
 # HTTP and Claude API client
