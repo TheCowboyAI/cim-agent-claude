@@ -431,45 +431,37 @@ impl GuiNatsClient {
         }
     }
     
-    /// Create a future for sending a command that can be used with Iced's Command::perform
+    /// Create a future for sending a command using NATS CLI (most reliable)
     pub fn send_command_future(command_envelope: CommandEnvelope) -> impl std::future::Future<Output = Result<(), String>> + Send {
         async move {
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                match async_nats::connect("nats://localhost:4222").await {
-                    Ok(client) => {
-                        let command_type = match &command_envelope.command {
-                            DomainCommand::StartConversation { .. } => "start_conversation",
-                            DomainCommand::SendPrompt { .. } => "send_prompt", 
-                            DomainCommand::EndConversation { .. } => "end_conversation",
-                        };
-                        let subject = format!("cim.claude.command.{}", command_type);
-                        
-                        let payload = serde_json::to_vec(&command_envelope)
-                            .map_err(|e| format!("Serialization failed: {}", e))?;
-                        
-                        match client.publish(subject, payload.into()).await {
-                            Ok(_) => {
-                                info!("Successfully published command to {}", subject);
-                                Ok(())
-                            }
-                            Err(e) => {
-                                error!("NATS publish failed: {}", e);
-                                Err(format!("NATS publish failed: {}", e))
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        error!("Failed to connect to NATS: {}", e);
-                        Err(format!("NATS connection failed: {}", e))
-                    }
-                }
-            }
+            let command_type = match &command_envelope.command {
+                DomainCommand::StartConversation { .. } => "start_conversation",
+                DomainCommand::SendPrompt { .. } => "send_prompt", 
+                DomainCommand::EndConversation { .. } => "end_conversation",
+            };
+            let subject = format!("cim.claude.command.{}", command_type);
             
-            #[cfg(target_arch = "wasm32")]
-            {
-                // WebSocket implementation would go here
-                Err("WebSocket NATS not implemented".to_string())
+            let payload = serde_json::to_string(&command_envelope)
+                .map_err(|e| format!("Serialization failed: {}", e))?;
+            
+            info!("Publishing command to {} via NATS CLI", subject);
+            
+            // Use NATS CLI for maximum reliability
+            let output = tokio::process::Command::new("nats")
+                .arg("pub")
+                .arg(&subject)
+                .arg(&payload)
+                .output()
+                .await
+                .map_err(|e| format!("Failed to execute nats command: {}", e))?;
+            
+            if output.status.success() {
+                info!("Successfully published command to {} via CLI", subject);
+                Ok(())
+            } else {
+                let error = String::from_utf8_lossy(&output.stderr);
+                error!("NATS CLI publish failed: {}", error);
+                Err(format!("NATS publish failed: {}", error.trim()))
             }
         }
     }
