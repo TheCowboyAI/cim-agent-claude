@@ -326,15 +326,8 @@ mod tests {
         );
         
         // Use real ClaudeApiAdapter for Claude API port
-        let claude_config = crate::config::ClaudeConfig {
-            api_key: "test-key".to_string(),
-            model: "claude-3-5-sonnet-20241022".to_string(),
-            max_tokens: 4096,
-            temperature: 0.7,
-        };
         let claude_api_port = Arc::new(
-            ClaudeApiAdapter::new(claude_config).await
-                .expect("Failed to create Claude API adapter")
+            ClaudeApiAdapter::new("test-key".to_string(), None)
         );
         
         let service = ConversationService::new(
