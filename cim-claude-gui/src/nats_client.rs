@@ -114,11 +114,8 @@ impl GuiNatsClient {
                 }
             };
             
-            // Schedule the connection task to run
-            std::thread::spawn(|| {
-                let rt = tokio::runtime::Runtime::new().unwrap();
-                rt.block_on(connect_task);
-            });
+            // Schedule the connection task to run on the current runtime
+            tokio::spawn(connect_task);
             
             // Return stream of messages from the receiver
             Box::pin(stream::unfold(rx, |mut rx| async move {
