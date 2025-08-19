@@ -54,7 +54,7 @@ impl NatsComponent {
 
 /// NATS subscription for events - proper Iced subscription pattern
 pub fn events_subscription() -> iced::Subscription<Message> {
-    iced::subscription::unfold(
+    iced::Subscription::unfold(
         "nats-events", 
         (), 
         |_state| async {
