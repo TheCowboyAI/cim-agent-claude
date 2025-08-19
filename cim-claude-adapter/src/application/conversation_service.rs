@@ -319,13 +319,13 @@ mod tests {
     
     #[tokio::test]
     async fn test_conversation_service_health_check() {
-        // Connect to real NATS at localhost:4222
+        // NATS is always available at localhost:4222
+        
         let nats_adapter = Arc::new(
             NatsAdapter::new("nats://localhost:4222").await
                 .expect("NATS must be available at localhost:4222")
         );
         
-        // Use real ClaudeApiAdapter for Claude API port
         let claude_api_port = Arc::new(
             ClaudeApiAdapter::new("test-key".to_string(), None)
         );
@@ -339,6 +339,5 @@ mod tests {
         let health = service.health_check().await.unwrap();
         assert!(health.is_healthy);
         assert!(health.conversation_port_healthy);
-        // Note: Claude API availability depends on valid API key
     }
 }

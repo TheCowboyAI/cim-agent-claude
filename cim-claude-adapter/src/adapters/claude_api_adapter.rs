@@ -466,9 +466,9 @@ mod tests {
     #[test]
     fn test_rate_limit_status() {
         let status = RateLimitStatus {
-            requests_remaining: 5,
+            requests_remaining: 4,
             requests_limit: 50,
-            tokens_remaining: 1000,
+            tokens_remaining: 900,
             tokens_limit: 10000,
             reset_time: Utc::now(),
         };
