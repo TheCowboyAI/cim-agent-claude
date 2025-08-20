@@ -14,18 +14,39 @@ The implementation follows the TEA-ECS bridge pattern where:
 - **ECS Communication Layer**: Asynchronous Entity-Component-System for message bus operations
 - **Bridge**: Connects the two layers while maintaining clean separation
 
-```
-┌─────────────────┐    Commands    ┌──────────────────┐
-│                 │ ──────────────► │                  │
-│   TEA Layer     │                 │   ECS Layer      │
-│  (UI/Display)   │                 │ (Communication)  │
-│                 │ ◄────────────── │                  │
-└─────────────────┘    Events       └──────────────────┘
-        │                                    │
-        │            TEA-ECS Bridge          │
-        │                                    │
-        ▼                                    ▼
-  Iced GUI App                        NATS Message Bus
+```mermaid
+graph TB
+    subgraph "TEA-ECS Bridge Architecture"
+        subgraph "TEA Layer (UI/Display)"
+            IcedApp[Iced GUI App]
+            Model[Application Model]
+            View[View Components]
+            Update[Update Logic]
+        end
+        
+        subgraph "Bridge Layer"
+            Bridge[TEA-ECS Bridge]
+            Commands[Commands Channel]
+            Events[Events Channel]
+        end
+        
+        subgraph "ECS Layer (Communication)"
+            EntityMgr[Entity Manager]
+            Components[Component Systems]
+            MessageBus[NATS Message Bus]
+        end
+        
+        IcedApp --> Model
+        Model --> View
+        View --> |User Actions| Update
+        Update --> |Commands| Bridge
+        Bridge --> |Commands| EntityMgr
+        EntityMgr --> Components
+        Components --> MessageBus
+        MessageBus --> |Domain Events| Components
+        Components --> |TEA Events| Bridge
+        Bridge --> |Events| Update
+    end
 ```
 
 ## Key Components
@@ -127,6 +148,47 @@ ConversationEntity {
 }
 ```
 
+```mermaid
+erDiagram
+    ConversationEntity {
+        EntityId id
+        ConversationMetadata metadata
+        MessageHistory messages
+        UiState ui_state
+        SessionInfo session
+    }
+    
+    ConversationMetadata {
+        String title
+        String status
+        DateTime created_at
+        DateTime updated_at
+    }
+    
+    MessageHistory {
+        Vec messages
+        u32 token_count
+        f64 estimated_cost
+    }
+    
+    UiState {
+        bool is_selected
+        LoadingState loading_state
+        ErrorInfo last_error
+    }
+    
+    SessionInfo {
+        String user_id
+        String session_id
+        HashMap preferences
+    }
+    
+    ConversationEntity ||--|| ConversationMetadata : has
+    ConversationEntity ||--|| MessageHistory : contains
+    ConversationEntity ||--o| UiState : may_have
+    ConversationEntity ||--o| SessionInfo : may_have
+```
+
 **Component Dirty Tracking:**
 - Automatic change detection
 - Partial synchronization support  
@@ -168,6 +230,37 @@ ConversationEntity {
 ## Usage Examples
 
 ### Starting a Conversation
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant IcedApp
+    participant Bridge
+    participant EntityMgr
+    participant NATS
+    participant Claude
+    
+    User->>IcedApp: Click "Start Conversation"
+    IcedApp->>IcedApp: Check bridge_connected
+    
+    alt Bridge Connected
+        IcedApp->>IcedApp: Set LoadingState::Loading
+        IcedApp->>Bridge: StartConversation Command
+        Bridge->>EntityMgr: Create ConversationEntity
+        EntityMgr->>NATS: Publish ConversationCreated
+        NATS->>Claude: Send Initial Message
+        Claude-->>NATS: Response Received
+        NATS-->>EntityMgr: ConversationUpdated Event
+        EntityMgr-->>Bridge: TeaEvent::ConversationCreated
+        Bridge-->>IcedApp: Event Received
+        IcedApp->>IcedApp: Update UI, Show Success Toast
+        IcedApp->>IcedApp: Set LoadingState::Success
+    else Bridge Disconnected
+        IcedApp->>IcedApp: Show Error: "Bridge not connected"
+        IcedApp->>IcedApp: Display Recovery Actions
+    end
+```
+
 ```rust
 // User clicks "Start Conversation"
 Message::StartConversation { session_id, initial_prompt } => {
@@ -202,6 +295,30 @@ TeaEvent::ConversationCreated { conversation_id, .. } => {
 ```
 
 ### Error Handling
+
+```mermaid
+stateDiagram-v2
+    [*] --> Connected: Bridge Initialized
+    Connected --> Loading: User Action
+    Loading --> Success: Operation Complete
+    Loading --> Error: Operation Failed
+    Success --> Connected: Ready for Next Action
+    Error --> Retrying: Auto Recovery
+    Error --> Connected: Manual Recovery
+    Error --> Disconnected: Critical Failure
+    Retrying --> Connected: Recovery Success
+    Retrying --> Disconnected: Recovery Failed
+    Disconnected --> Connected: Reconnection Success
+    
+    state Error {
+        [*] --> ShowToast
+        ShowToast --> LogError
+        LogError --> DetermineRecovery
+        DetermineRecovery --> AutoRetry: Retriable Error
+        DetermineRecovery --> UserAction: User Intervention Needed
+    }
+```
+
 ```rust
 // Bridge connection fails
 TeaEvent::ErrorOccurred { error, .. } => {
@@ -242,6 +359,46 @@ TeaEvent::ErrorOccurred { error, .. } => {
 - Entity-component state management
 
 ## Integration Points
+
+```mermaid
+graph TB
+    subgraph "Integration Architecture"
+        subgraph "GUI Layer"
+            Dashboard[Dashboard View]
+            Conversations[Conversations View] 
+            Events[Events View]
+            ErrorBoundary[Error Boundary]
+        end
+        
+        subgraph "Bridge Integration"
+            TeaEcsBridge[TEA-ECS Bridge]
+            EventConverter[Event Converter]
+            StateManager[State Manager]
+            ErrorHandler[Error Handler]
+        end
+        
+        subgraph "External Systems"
+            NATS[NATS Message Bus]
+            ClaudeAPI[Claude API]
+            EntityDB[Entity Storage]
+        end
+        
+        Dashboard --> TeaEcsBridge
+        Conversations --> TeaEcsBridge
+        Events --> TeaEcsBridge
+        ErrorBoundary --> ErrorHandler
+        
+        TeaEcsBridge --> EventConverter
+        EventConverter --> StateManager
+        StateManager --> NATS
+        TeaEcsBridge --> ClaudeAPI
+        StateManager --> EntityDB
+        
+        NATS --> |Domain Events| EventConverter
+        ClaudeAPI --> |API Responses| EventConverter
+        EntityDB --> |Entity Updates| StateManager
+    end
+```
 
 ### NATS Message Bus
 - Automatic subscription to relevant event streams
