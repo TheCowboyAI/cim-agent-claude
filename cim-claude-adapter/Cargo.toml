@@ -8,7 +8,7 @@ repository = "https://github.com/TheCowboyAI/cim-agent-claude"
 
 [dependencies]
 # HTTP client for Claude API
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 
 # Async runtime
 tokio = { workspace = true }
@@ -24,8 +24,18 @@ chrono = { workspace = true }
 # Error handling
 thiserror = { workspace = true }
 
+[features]
+default = ["native"]
+native = []
+
 [dev-dependencies]
+# Test framework and utilities
+tokio-test = "0.4"
+wiremock = "0.6"
+
+# For async test timeouts and utilities
+tokio = { workspace = true, features = ["test-util", "macros", "time"] }
+
+# Test data and assertions
 tempfile = "3.0"
-testcontainers = "0.15"
 serial_test = "3.0"
-md5 = "0.7"

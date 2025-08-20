@@ -139,7 +139,7 @@ impl ClaudeClient {
     }
 
     /// Stream a message to Claude (for future implementation)
-    pub async fn stream_message(&self, _request: ClaudeRequest) -> Result<impl futures::Stream<Item = Result<ClaudeResponse, ClaudeError>>, ClaudeError> {
+    pub async fn stream_message(&self, _request: ClaudeRequest) -> Result<Box<dyn futures::Stream<Item = Result<ClaudeResponse, ClaudeError>> + Unpin + Send>, ClaudeError> {
         // TODO: Implement streaming support
         Err(ClaudeError::NotSupported("Streaming not yet implemented".to_string()))
     }

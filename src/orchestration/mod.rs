@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use tokio::time::{interval, Duration};
 use tracing::{info, warn, error};
 
-use crate::composition::{CimModule, ModuleHealth};
+use crate::composition::composer::{CimModule, ModuleHealth};
 use crate::infrastructure::{NatsInfrastructure, Config};
 
 pub struct ServiceOrchestrator {

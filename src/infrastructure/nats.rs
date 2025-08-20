@@ -48,46 +48,49 @@ impl NatsInfrastructure {
         
         // Claude Events Stream
         let events_stream = format!("{}_EVENTS", config.subject_prefix.replace(".", "_").to_uppercase());
-        js.create_stream(jetstream::stream::Config {
+        let events_stream_name = events_stream.clone();
+        match js.create_stream(jetstream::stream::Config {
             name: events_stream,
             subjects: vec![format!("{}.event.>", config.subject_prefix)],
             storage: jetstream::stream::StorageType::File,
             ..Default::default()
-        }).await.or_else(|e| {
-            if e.to_string().contains("already exists") {
-                Ok(js.get_stream(&format!("{}_EVENTS", config.subject_prefix.replace(".", "_").to_uppercase())).await?)
-            } else {
-                Err(e)
-            }
-        })?;
+        }).await {
+            Ok(stream) => stream,
+            Err(e) if e.to_string().contains("already exists") => {
+                js.get_stream(&events_stream_name).await?
+            },
+            Err(e) => return Err(e.into()),
+        };
         
         // Claude Commands Stream  
         let commands_stream = format!("{}_COMMANDS", config.subject_prefix.replace(".", "_").to_uppercase());
-        js.create_stream(jetstream::stream::Config {
+        let commands_stream_name = commands_stream.clone();
+        match js.create_stream(jetstream::stream::Config {
             name: commands_stream,
             subjects: vec![format!("{}.cmd.>", config.subject_prefix)],
             storage: jetstream::stream::StorageType::File,
             ..Default::default()
-        }).await.or_else(|e| {
-            if e.to_string().contains("already exists") {
-                Ok(js.get_stream(&format!("{}_COMMANDS", config.subject_prefix.replace(".", "_").to_uppercase())).await?)
-            } else {
-                Err(e)
-            }
-        })?;
+        }).await {
+            Ok(stream) => stream,
+            Err(e) if e.to_string().contains("already exists") => {
+                js.get_stream(&commands_stream_name).await?
+            },
+            Err(e) => return Err(e.into()),
+        };
         
         // Conversation State KV
         let kv_name = format!("{}_STATE", config.subject_prefix.replace(".", "_").to_uppercase());
-        js.create_key_value(jetstream::kv::Config {
+        let kv_bucket_name = kv_name.clone();
+        match js.create_key_value(jetstream::kv::Config {
             bucket: kv_name,
             ..Default::default()
-        }).await.or_else(|e| {
-            if e.to_string().contains("already exists") {
-                Ok(js.get_key_value(&format!("{}_STATE", config.subject_prefix.replace(".", "_").to_uppercase())).await?)
-            } else {
-                Err(e)
-            }
-        })?;
+        }).await {
+            Ok(kv) => kv,
+            Err(e) if e.to_string().contains("already exists") => {
+                js.get_key_value(&kv_bucket_name).await?
+            },
+            Err(e) => return Err(e.into()),
+        };
         
         info!("JetStream streams created successfully");
         Ok(())

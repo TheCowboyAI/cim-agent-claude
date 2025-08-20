@@ -8,7 +8,7 @@
 use thiserror::Error;
 
 /// Claude API Errors
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum ClaudeError {
     /// Configuration errors
     #[error("Configuration error: {0}")]

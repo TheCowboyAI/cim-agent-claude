@@ -24,6 +24,6 @@ pub mod client;
 pub mod domain;
 pub mod error;
 
-pub use client::ClaudeClient;
+pub use client::{ClaudeClient, ClaudeConfig};
 pub use domain::*;
 pub use error::ClaudeError;

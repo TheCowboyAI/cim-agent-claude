@@ -10,6 +10,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::env;
+use super::{claude, gui, expert};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {

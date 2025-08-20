@@ -18,11 +18,16 @@ futures = { workspace = true }
 async-nats = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+uuid = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
+# Additional dependencies
+sha2 = "0.10"
+serde_yaml = "0.9"
+hex = "0.4"
 
 [workspace]
 members = [
@@ -46,4 +51,4 @@ chrono = { version = "0.4", features = ["serde"] }
 thiserror = "1.0"
 anyhow = "1.0"
 tracing = "0.1"
-tracing-subscriber = "0.3"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
