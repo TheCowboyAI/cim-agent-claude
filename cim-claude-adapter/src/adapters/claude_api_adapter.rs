@@ -173,7 +173,7 @@ impl ClaudeApiAdapter {
             model: request.context.metadata()
                 .get("model")
                 .cloned()
-                .unwrap_or_else(|| "claude-3-sonnet-20240229".to_string()),
+                .unwrap_or_else(|| "claude-3-5-sonnet-20241022".to_string()),
             max_tokens: request.context.max_tokens().unwrap_or(4000),
             messages: vec![
                 ClaudeMessage {
