@@ -8,18 +8,18 @@
 
 Run `.claude/scripts/detect-context.sh` to understand your current context.
 
-## CRITICAL: Date Handling Rules
-**NEVER generate dates from memory. ALWAYS use:**
-1. System date: `$(date -I)` or `$(date +%Y-%m-%d)`
-2. Git commit dates: `$(git log -1 --format=%cd --date=short)`
-3. Existing dates from files being read
-
-**When updating progress.json:**
-```bash
-# Always capture system date
-CURRENT_DATE=$(date -I)
-# Then use $CURRENT_DATE in JSON updates
-```
+## CRITICAL: Date Handling Rules - TOP PRIORITY
+**NEVER generate dates from memory. ALWAYS use system commands:**
+- Use `$(date -I)` for current date (YYYY-MM-DD format)
+- Use `$(date +%Y-%m-%d)` for alternate current date format
+- Use `$(git log -1 --format=%cd --date=short)` for git commit dates  
+- Use existing dates from files being read
+- **When updating progress.json or any dated files:**
+  ```bash
+  # Always capture system date first
+  CURRENT_DATE=$(date -I)
+  # Then use $CURRENT_DATE in JSON updates
+  ```
 
 ## Core Architecture Understanding
 

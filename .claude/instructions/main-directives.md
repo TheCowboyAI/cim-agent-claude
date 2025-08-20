@@ -9,9 +9,9 @@
 - This applies to ALL file types without exception
 
 ### Date Handling
-**NEVER generate dates - ALWAYS use system commands**
-- Use `$(date -I)` for current date
-- Use `$(git log -1 --format=%cd --date=short)` for git dates
+**See CRITICAL date handling rules in instructions.md, CLAUDE.md, and unified-conversation-model.md**
+- Reference: Use `$(date -I)` for current date
+- Reference: Use `$(git log -1 --format=%cd --date=short)` for git dates
 - Never hardcode or guess dates
 
 ## Development Environment
