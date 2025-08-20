@@ -78,7 +78,7 @@ pub enum ExecutionStrategy {
 }
 
 /// CIM domain types for subject algebra
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum DomainType {
     Architecture,
     DomainModeling,
@@ -519,7 +519,7 @@ impl SubagentRouter {
         
         for (domain_type, signatures) in domain_signatures {
             let mut score = 0.0;
-            for signature in signatures {
+            for signature in &signatures {
                 if text.contains(&signature) {
                     score += 1.0;
                 }
@@ -690,7 +690,7 @@ impl SubagentRouter {
         Ok(SubjectResolution {
             primary_subject: primary_agent,
             secondary_subjects: secondary_agents,
-            resolution_strategy: strategy,
+            resolution_strategy: strategy.clone(),
             algebraic_confidence,
             subject_path: subject_path.to_string(),
             domain_context,

@@ -314,12 +314,12 @@ macro_rules! create_expert_agent {
 
             fn can_handle(&self, query: &SubagentQuery) -> bool {
                 let text = query.query_text.to_lowercase();
-                $keywords.iter().any(|&keyword| text.contains(keyword))
+                $keywords.iter().any(|keyword| text.contains(keyword))
             }
 
             fn priority_score(&self, query: &SubagentQuery) -> u32 {
                 let text = query.query_text.to_lowercase();
-                $keywords.iter().filter(|&k| text.contains(k)).count() as u32 * 20
+                ($keywords.iter().filter(|k| text.contains(k)).count() as u32) * 20
             }
         }
     };

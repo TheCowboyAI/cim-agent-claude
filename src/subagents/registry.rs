@@ -148,7 +148,7 @@ impl SubagentRegistry {
         // Register the agent
         {
             let mut agents = self.agents.write().await;
-            agents.insert(agent_id.clone(), agent);
+            agents.insert(agent_id.clone(), Arc::from(agent));
         }
 
         // Store agent info

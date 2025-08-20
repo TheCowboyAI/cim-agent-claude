@@ -1233,12 +1233,17 @@ impl Subagent for SageOrchestrator {
             confidence_score: 0.95, // SAGE has high confidence in orchestration
             recommendations: orchestration_plan.recommendations,
             next_actions: orchestration_plan.next_actions,
-            metadata: serde_json::json!({
-                "orchestration_type": orchestration_plan.orchestration_type,
-                "participating_domains": orchestration_plan.participating_domains,
-                "requires_object_store": orchestration_plan.requires_object_store,
-                "requires_event_store": orchestration_plan.requires_event_store
-            }).as_object().unwrap().clone(),
+            metadata: {
+                let json_obj = serde_json::json!({
+                    "orchestration_type": orchestration_plan.orchestration_type,
+                    "participating_domains": orchestration_plan.participating_domains,
+                    "requires_object_store": orchestration_plan.requires_object_store,
+                    "requires_event_store": orchestration_plan.requires_event_store
+                });
+                json_obj.as_object().unwrap().iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect::<std::collections::HashMap<String, serde_json::Value>>()
+            },
             timestamp: Utc::now(),
         })
     }

@@ -121,21 +121,15 @@ impl SubagentDispatcher {
         }
 
         // Step 3: Execute based on routing strategy
-        let result = match routing_decision.routing_strategy {
-            RoutingStrategy::SingleAgent => {
-                self.execute_single_agent(&query, &routing_decision).await
-            },
-            RoutingStrategy::Sequential => {
+        let result = match routing_decision.execution_strategy {
+            ExecutionStrategy::Sequential => {
                 self.execute_sequential(&query, &routing_decision).await
             },
-            RoutingStrategy::Parallel => {
+            ExecutionStrategy::Parallel => {
                 self.execute_parallel(&query, &routing_decision).await
             },
-            RoutingStrategy::Orchestrated => {
-                self.execute_orchestrated(&query, &routing_decision).await
-            },
-            RoutingStrategy::Collaborative => {
-                self.execute_collaborative(&query, &routing_decision).await
+            ExecutionStrategy::Adaptive => {
+                self.execute_adaptive(&query, &routing_decision).await
             },
         };
 
@@ -298,7 +292,7 @@ impl SubagentDispatcher {
     }
 
     /// Execute orchestrated query (via SAGE)
-    async fn execute_orchestrated(&self, query: &SubagentQuery, decision: &RouteDecision) -> Result<DispatchResult, SubagentError> {
+    async fn execute_adaptive(&self, query: &SubagentQuery, decision: &RouteDecision) -> Result<DispatchResult, SubagentError> {
         // For orchestrated queries, we route through SAGE which manages the workflow
         let sage_agent = self.registry.get_agent("sage").await
             .ok_or_else(|| SubagentError::NotFound("SAGE orchestrator not available".to_string()))?;
