@@ -114,8 +114,14 @@ impl ClaudeApiPort for ClaudeApiAdapter {
         );
         
         let is_available = match self.make_claude_request(&test_request).await {
-            Ok(_) => true,
-            Err(_) => false,
+            Ok(_) => {
+                info!("Claude API health check passed");
+                true
+            }
+            Err(e) => {
+                error!("Claude API health check failed: {}", e);
+                false
+            }
         };
         
         let response_time_ms = start_time.elapsed().as_millis() as u64;
