@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use tracing::{info, error};
+use tracing::{info, warn, error};
 
 use crate::{
     domain::{
@@ -315,31 +315,107 @@ pub struct ServiceHealth {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::adapters::{NatsAdapter, ClaudeApiAdapter};
+    use crate::adapters::MemoryStateAdapter;
+    use async_trait::async_trait;
+    use std::collections::HashMap;
+    use tokio::sync::Mutex;
+    
+    // Mock implementations for testing
+    struct MockConversationPort;
+    
+    #[async_trait]
+    impl ConversationPort for MockConversationPort {
+        async fn handle_command(
+            &self,
+            _command: Command,
+            _correlation_id: CorrelationId,
+        ) -> Result<Vec<DomainEvent>, ApplicationError> {
+            Ok(vec![])
+        }
+        
+        async fn publish_events(
+            &self,
+            _events: Vec<EventEnvelope>,
+        ) -> Result<(), ApplicationError> {
+            Ok(())
+        }
+        
+        async fn subscribe_to_commands<F>(&self, _handler: F) -> Result<(), ApplicationError>
+        where
+            F: Fn(CommandEnvelope) -> Result<(), ApplicationError> + Send + Sync + 'static,
+        {
+            Ok(())
+        }
+        
+        async fn health_check(&self) -> Result<crate::ports::PortHealth, ApplicationError> {
+            Ok(crate::ports::PortHealth::healthy("Mock port healthy".to_string()))
+        }
+    }
+    
+    struct MockClaudeApiPort;
+    
+    #[async_trait]
+    impl ClaudeApiPort for MockClaudeApiPort {
+        async fn send_prompt(
+            &self,
+            _request: ClaudeApiRequest,
+        ) -> Result<ClaudeApiResponse, ApplicationError> {
+            let response = ClaudeResponse::new(
+                "Hello! This is a mock response.".to_string(),
+                TokenUsage::new(10, 15),
+                "stop".to_string(),
+                "claude-3-sonnet-mock".to_string(),
+            );
+            
+            Ok(ClaudeApiResponse::new(
+                response,
+                "mock-request-id".to_string(),
+                100,
+            ))
+        }
+        
+        async fn health_check(&self) -> Result<crate::ports::ClaudeApiHealth, ApplicationError> {
+            Ok(crate::ports::ClaudeApiHealth {
+                is_available: true,
+                response_time_ms: 100,
+                error_rate: 0.0,
+                last_check: chrono::Utc::now(),
+                rate_limit_status: crate::ports::RateLimitStatus {
+                    requests_remaining: 50,
+                    requests_limit: 50,
+                    tokens_remaining: 100000,
+                    tokens_limit: 100000,
+                    reset_time: chrono::Utc::now(),
+                },
+            })
+        }
+        
+        async fn get_rate_limit_status(&self) -> Result<crate::ports::RateLimitStatus, ApplicationError> {
+            Ok(crate::ports::RateLimitStatus {
+                requests_remaining: 50,
+                requests_limit: 50,
+                tokens_remaining: 100000,
+                tokens_limit: 100000,
+                reset_time: chrono::Utc::now(),
+            })
+        }
+    }
     
     #[tokio::test]
     async fn test_conversation_service_health_check() {
-        // NATS is always available at localhost:4222
-        
-        let nats_adapter = Arc::new(
-            NatsAdapter::new("nats://localhost:4222").await
-                .expect("NATS must be available at localhost:4222")
-        );
-        
-        let claude_api_port = Arc::new(
-            ClaudeApiAdapter::new("test-key".to_string(), None)
-        );
+        let conversation_port = Arc::new(MockConversationPort);
+        let state_port = Arc::new(MemoryStateAdapter::new());
+        let claude_api_port = Arc::new(MockClaudeApiPort);
         
         let service = ConversationService::new(
-            nats_adapter.clone(),
-            nats_adapter.clone(),
+            conversation_port,
+            state_port,
             claude_api_port,
         );
         
         let health = service.health_check().await.unwrap();
-        // Only assert NATS connectivity in test, not Claude API (which will fail with test key)
+        assert!(health.is_healthy);
         assert!(health.conversation_port_healthy);
-        // Note: health.is_healthy will be false because Claude API is not accessible with test key
-        // This is expected behavior in test environment
+        assert!(health.claude_api_available);
     }
 }

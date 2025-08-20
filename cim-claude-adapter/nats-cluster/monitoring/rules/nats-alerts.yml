@@ -1,0 +1,228 @@
+# NATS Cluster Alerting Rules for Prometheus
+
+groups:
+  - name: nats-cluster-alerts
+    rules:
+      # NATS Node Down
+      - alert: NATSNodeDown
+        expr: up{job="nats-monitoring"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          component: nats
+        annotations:
+          summary: "NATS node {{ $labels.instance }} is down"
+          description: "NATS server {{ $labels.instance }} has been down for more than 30 seconds"
+
+      # NATS Cluster Unhealthy
+      - alert: NATSClusterUnhealthy
+        expr: sum(up{job="nats-monitoring"}) < 2
+        for: 1m
+        labels:
+          severity: critical
+          component: nats-cluster
+        annotations:
+          summary: "NATS cluster is unhealthy"
+          description: "Less than 2 NATS nodes are available. Current count: {{ $value }}"
+
+      # JetStream Not Available
+      - alert: JetStreamDown
+        expr: nats_server_jetstream_enabled == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: jetstream
+        annotations:
+          summary: "JetStream is not enabled on {{ $labels.instance }}"
+          description: "JetStream functionality is not available on NATS server {{ $labels.instance }}"
+
+      # High Memory Usage
+      - alert: NATSHighMemoryUsage
+        expr: (nats_server_mem / nats_server_mem_max) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: nats
+        annotations:
+          summary: "NATS server {{ $labels.instance }} high memory usage"
+          description: "NATS server {{ $labels.instance }} memory usage is above 80%: {{ $value }}%"
+
+      # High Connection Count
+      - alert: NATSHighConnectionCount
+        expr: nats_server_total_connections > 5000
+        for: 10m
+        labels:
+          severity: warning
+          component: nats
+        annotations:
+          summary: "NATS server {{ $labels.instance }} high connection count"
+          description: "NATS server {{ $labels.instance }} has {{ $value }} connections (threshold: 5000)"
+
+      # JetStream Storage Full
+      - alert: JetStreamStorageFull
+        expr: (nats_server_jetstream_storage_used / nats_server_jetstream_storage_max) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+          component: jetstream
+        annotations:
+          summary: "JetStream storage almost full on {{ $labels.instance }}"
+          description: "JetStream storage usage is {{ $value }}% on {{ $labels.instance }}"
+
+      # JetStream Memory Full
+      - alert: JetStreamMemoryFull
+        expr: (nats_server_jetstream_memory_used / nats_server_jetstream_memory_max) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+          component: jetstream
+        annotations:
+          summary: "JetStream memory almost full on {{ $labels.instance }}"
+          description: "JetStream memory usage is {{ $value }}% on {{ $labels.instance }}"
+
+      # Stream Consumer Lag
+      - alert: StreamConsumerLag
+        expr: nats_server_jetstream_consumer_num_pending > 10000
+        for: 5m
+        labels:
+          severity: warning
+          component: jetstream
+        annotations:
+          summary: "High consumer lag detected"
+          description: "Consumer {{ $labels.consumer_name }} on stream {{ $labels.stream_name }} has {{ $value }} pending messages"
+
+      # Slow Consumer Detected
+      - alert: SlowConsumer
+        expr: increase(nats_server_slow_consumers_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          component: nats
+        annotations:
+          summary: "Slow consumer detected on {{ $labels.instance }}"
+          description: "{{ $value }} slow consumers detected in the last 5 minutes on {{ $labels.instance }}"
+
+      # Connection Authentication Failures
+      - alert: AuthenticationFailures
+        expr: increase(nats_server_auth_failures_total[5m]) > 10
+        for: 1m
+        labels:
+          severity: warning
+          component: nats-security
+        annotations:
+          summary: "High authentication failures on {{ $labels.instance }}"
+          description: "{{ $value }} authentication failures in the last 5 minutes on {{ $labels.instance }}"
+
+  - name: claude-adapter-alerts
+    rules:
+      # Claude Adapter Down
+      - alert: ClaudeAdapterDown
+        expr: up{job="claude-adapter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: claude-adapter
+        annotations:
+          summary: "Claude Adapter is down"
+          description: "Claude Adapter has been unreachable for more than 1 minute"
+
+      # High Error Rate
+      - alert: ClaudeAdapterHighErrorRate
+        expr: rate(claude_adapter_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          component: claude-adapter
+        annotations:
+          summary: "Claude Adapter high error rate"
+          description: "Error rate is {{ $value }} errors per second over the last 5 minutes"
+
+      # Circuit Breaker Open
+      - alert: CircuitBreakerOpen
+        expr: claude_adapter_circuit_breaker_state == 2
+        for: 30s
+        labels:
+          severity: warning
+          component: claude-adapter
+        annotations:
+          summary: "Circuit breaker open for {{ $labels.domain }}"
+          description: "Circuit breaker is open for domain {{ $labels.domain }}, blocking requests"
+
+      # High Response Latency
+      - alert: ClaudeAdapterHighLatency
+        expr: histogram_quantile(0.95, claude_adapter_request_duration_seconds) > 30
+        for: 5m
+        labels:
+          severity: warning
+          component: claude-adapter
+        annotations:
+          summary: "Claude Adapter high response latency"
+          description: "95th percentile response time is {{ $value }} seconds"
+
+      # Rate Limit Exceeded
+      - alert: RateLimitExceeded
+        expr: increase(claude_adapter_rate_limit_exceeded_total[5m]) > 5
+        for: 1m
+        labels:
+          severity: warning
+          component: claude-adapter
+        annotations:
+          summary: "Rate limit exceeded"
+          description: "{{ $value }} rate limit violations in the last 5 minutes"
+
+  - name: infrastructure-alerts
+    rules:
+      # Container Down
+      - alert: ContainerDown
+        expr: up{job="docker-containers"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: infrastructure
+        annotations:
+          summary: "Container {{ $labels.name }} is down"
+          description: "Docker container {{ $labels.name }} has been down for more than 1 minute"
+
+      # High CPU Usage
+      - alert: HighCPUUsage
+        expr: rate(container_cpu_usage_seconds_total[5m]) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "High CPU usage on {{ $labels.name }}"
+          description: "Container {{ $labels.name }} CPU usage is {{ $value }}%"
+
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: (container_memory_usage_bytes / container_spec_memory_limit_bytes) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+          component: infrastructure
+        annotations:
+          summary: "High memory usage on {{ $labels.name }}"
+          description: "Container {{ $labels.name }} memory usage is {{ $value }}%"
+
+      # Disk Space Low
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_free_bytes / node_filesystem_size_bytes) * 100 < 10
+        for: 5m
+        labels:
+          severity: critical
+          component: infrastructure
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Filesystem {{ $labels.mountpoint }} has only {{ $value }}% space remaining"
+
+      # Network Errors
+      - alert: NetworkErrors
+        expr: increase(node_network_receive_errs_total[5m]) > 100
+        for: 2m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "Network errors on {{ $labels.instance }}"
+          description: "{{ $value }} network receive errors in the last 5 minutes on interface {{ $labels.device }}"

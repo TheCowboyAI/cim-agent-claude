@@ -5,7 +5,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::{num::NonZeroU32, sync::Arc, time::Duration};
 use tokio::sync::RwLock;
-use tracing::{info, error};
+use tracing::{info, warn, error};
 
 use crate::{
     domain::{errors::*, value_objects::*},
@@ -114,14 +114,8 @@ impl ClaudeApiPort for ClaudeApiAdapter {
         );
         
         let is_available = match self.make_claude_request(&test_request).await {
-            Ok(_) => {
-                info!("Claude API health check passed");
-                true
-            }
-            Err(e) => {
-                error!("Claude API health check failed: {}", e);
-                false
-            }
+            Ok(_) => true,
+            Err(_) => false,
         };
         
         let response_time_ms = start_time.elapsed().as_millis() as u64;
@@ -173,7 +167,7 @@ impl ClaudeApiAdapter {
             model: request.context.metadata()
                 .get("model")
                 .cloned()
-                .unwrap_or_else(|| "claude-3-5-sonnet-20241022".to_string()),
+                .unwrap_or_else(|| "claude-3-sonnet-20240229".to_string()),
             max_tokens: request.context.max_tokens().unwrap_or(4000),
             messages: vec![
                 ClaudeMessage {
@@ -239,7 +233,6 @@ impl ClaudeApiAdapter {
         // Convert to domain objects
         let content = claude_response.content
             .first()
-            .filter(|c| c.content_type == "text")
             .map(|c| c.text.clone())
             .unwrap_or_default();
             
@@ -451,10 +444,10 @@ mod tests {
         assert_eq!(cb.get_state().await, CircuitBreakerState::Closed);
         
         // Simulate failures
-        let _: Result<(), _> = cb.execute(|| Err(ApplicationError::ServiceUnavailable { 
+        let _ = cb.execute(|| Err(ApplicationError::ServiceUnavailable { 
             reason: "test".to_string() 
         })).await;
-        let _: Result<(), _> = cb.execute(|| Err(ApplicationError::ServiceUnavailable { 
+        let _ = cb.execute(|| Err(ApplicationError::ServiceUnavailable { 
             reason: "test".to_string() 
         })).await;
         
@@ -473,9 +466,9 @@ mod tests {
     #[test]
     fn test_rate_limit_status() {
         let status = RateLimitStatus {
-            requests_remaining: 4,
+            requests_remaining: 5,
             requests_limit: 50,
-            tokens_remaining: 900,
+            tokens_remaining: 1000,
             tokens_limit: 10000,
             reset_time: Utc::now(),
         };

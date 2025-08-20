@@ -170,6 +170,69 @@ Invoke @domain-expert with the user's request. The Domain Expert will:
 - Provide domain-driven design guidance
 ```
 
+### /iced
+**Description**: Get expert guidance on Iced UI development, reactive patterns, and CIM integration
+**Usage**: `/iced [request]`
+**Examples**:
+- `/iced` (general Iced development guidance)
+- `/iced design a reactive dashboard interface`
+- `/iced integrate NATS message streams with UI`
+- `/iced optimize widget performance`
+- `/iced implement custom components`
+
+**Implementation**:
+```
+Invoke @iced-ui-expert with the user's request. The Iced UI Expert will:
+- Design Iced application architecture and widget composition
+- Implement reactive UI patterns with proper state management
+- Integrate Iced UIs with NATS message streams and CIM infrastructure
+- Optimize performance through efficient rendering and update cycles
+- Create reusable components following modern Iced patterns
+- Provide cross-platform deployment strategies
+```
+
+### /elm
+**Description**: Apply The Elm Architecture patterns for functional reactive programming
+**Usage**: `/elm [request]`
+**Examples**:
+- `/elm` (TEA architecture guidance)
+- `/elm design Model-View-Update for my application`
+- `/elm implement functional state management`
+- `/elm integrate TEA with external APIs`
+- `/elm optimize message flow patterns`
+
+**Implementation**:
+```
+Invoke @elm-architecture-expert with the user's request. The ELM Architecture Expert will:
+- Design TEA-based architectures with immutable state management
+- Implement functional reactive patterns across different languages
+- Create pure update functions and message-driven workflows
+- Integrate TEA applications with external systems and APIs
+- Optimize functional composition and side effect management
+- Provide testing strategies for functional architectures
+```
+
+### /tea-ecs
+**Description**: Design hybrid architectures combining TEA functional patterns with ECS performance
+**Usage**: `/tea-ecs [request]`
+**Examples**:
+- `/tea-ecs` (hybrid architecture guidance)
+- `/tea-ecs design entity system with functional updates`
+- `/tea-ecs optimize component performance with immutable state`
+- `/tea-ecs integrate ECS with domain events`
+- `/tea-ecs implement distributed entity synchronization`
+
+**Implementation**:
+```
+Invoke @cim-tea-ecs-expert with the user's request. The CIM TEA-ECS Expert will:
+- Design hybrid TEA-ECS architectures following the four core axioms
+- Implement entity-component systems with functional reactive patterns
+- Integrate ECS performance optimization with TEA immutability principles
+- Create distributed entity systems synchronized via NATS infrastructure
+- Optimize memory management and parallel processing for entity workflows
+- Provide testing and debugging strategies for complex hybrid systems
+```
+
 ## Quick Reference Commands
 
 ### /architecture
@@ -311,7 +374,10 @@ For convenience, provide these shorter aliases:
 - `/nix` → `/nix`
 - `/nats` → `/nats`
 - `/n` → `/network`
-- `/d` → `/domain` 
+- `/d` → `/domain`
+- `/i` → `/iced`
+- `/e` → `/elm`
+- `/tecs` → `/tea-ecs`
 - `/arch` → `/architecture`
 - `/ex` → `/examples`
 - `/help` → `/start`
@@ -319,7 +385,7 @@ For convenience, provide these shorter aliases:
 ## Usage Notes
 
 1. **SAGE Orchestration**: `/sage` is the recommended entry point that intelligently routes to appropriate experts and coordinates multi-agent workflows
-2. **Expert Integration**: Direct expert commands (@cim-expert, @sage, @ddd-expert, @event-storming-expert, @nix-expert, @nats-expert, @network-expert, or @domain-expert) are available for specific needs
+2. **Expert Integration**: Direct expert commands (@cim-expert, @sage, @ddd-expert, @event-storming-expert, @nix-expert, @nats-expert, @network-expert, @domain-expert, @iced-ui-expert, @elm-architecture-expert, or @cim-tea-ecs-expert) are available for specific needs
 3. **Context Aware**: Commands adapt to the current project state and available files
 4. **Documentation Access**: Commands can read and reference all project documentation
 5. **Interactive**: Domain commands can start multi-turn conversations

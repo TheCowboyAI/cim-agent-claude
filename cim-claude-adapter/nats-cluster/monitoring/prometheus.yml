@@ -1,0 +1,125 @@
+# Prometheus configuration for CIM Claude NATS cluster monitoring
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'cim-claude-cluster'
+    environment: 'production'
+
+rule_files:
+  - "/etc/prometheus/rules/*.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+scrape_configs:
+  # NATS Server Monitoring
+  - job_name: 'nats-monitoring'
+    static_configs:
+      - targets: 
+        - 'nats-node-1:8222'
+        - 'nats-node-2:8222' 
+        - 'nats-node-3:8222'
+    metrics_path: '/varz'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    
+  # NATS JetStream Monitoring
+  - job_name: 'nats-jetstream'
+    static_configs:
+      - targets:
+        - 'nats-node-1:8222'
+        - 'nats-node-2:8222'
+        - 'nats-node-3:8222'
+    metrics_path: '/jsz'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # NATS Connection Monitoring
+  - job_name: 'nats-connections'
+    static_configs:
+      - targets:
+        - 'nats-node-1:8222'
+        - 'nats-node-2:8222'
+        - 'nats-node-3:8222'
+    metrics_path: '/connz'
+    scrape_interval: 60s
+    scrape_timeout: 15s
+
+  # NATS Route Monitoring
+  - job_name: 'nats-routes'
+    static_configs:
+      - targets:
+        - 'nats-node-1:8222'
+        - 'nats-node-2:8222'
+        - 'nats-node-3:8222'
+    metrics_path: '/routez'
+    scrape_interval: 60s
+    scrape_timeout: 15s
+
+  # NATS Subscription Monitoring
+  - job_name: 'nats-subscriptions'
+    static_configs:
+      - targets:
+        - 'nats-node-1:8222'
+        - 'nats-node-2:8222'
+        - 'nats-node-3:8222'
+    metrics_path: '/subsz'
+    scrape_interval: 60s
+    scrape_timeout: 15s
+
+  # Claude Adapter Application Metrics
+  - job_name: 'claude-adapter'
+    static_configs:
+      - targets:
+        - 'cim-claude-adapter:9464'  # Prometheus metrics endpoint
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    metrics_path: '/metrics'
+
+  # Docker Container Metrics (via cAdvisor)
+  - job_name: 'docker-containers'
+    static_configs:
+      - targets:
+        - 'cadvisor:8080'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    metrics_path: '/metrics'
+
+  # Node Exporter for System Metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets:
+        - 'node-exporter:9100'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # NATS Surveyor Metrics
+  - job_name: 'nats-surveyor'
+    static_configs:
+      - targets:
+        - 'nats-surveyor:7777'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    metrics_path: '/metrics'
+
+  # Prometheus Self-Monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets:
+        - 'localhost:9090'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # Grafana Monitoring
+  - job_name: 'grafana'
+    static_configs:
+      - targets:
+        - 'grafana:3000'
+    scrape_interval: 60s
+    scrape_timeout: 15s
+    metrics_path: '/metrics'

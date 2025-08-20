@@ -1,0 +1,342 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "CIM Claude NATS Cluster Overview",
+    "tags": ["nats", "jetstream", "cluster", "cim", "claude"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Cluster Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(up{job=\"nats-monitoring\"})",
+            "legendFormat": "Active Nodes"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 2},
+                {"color": "green", "value": 3}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 6, "w": 4, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Total Connections",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(nats_server_total_connections)",
+            "legendFormat": "Connections"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 4, "x": 4, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Messages per Second",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(nats_server_in_msgs_total[1m]))",
+            "legendFormat": "Inbound"
+          },
+          {
+            "expr": "sum(rate(nats_server_out_msgs_total[1m]))",
+            "legendFormat": "Outbound"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 4, "x": 8, "y": 0}
+      },
+      {
+        "id": 4,
+        "title": "JetStream Storage",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(nats_server_jetstream_storage_used) / sum(nats_server_jetstream_storage_max) * 100",
+            "legendFormat": "Storage %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 70},
+                {"color": "red", "value": 90}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 6, "w": 4, "x": 12, "y": 0}
+      },
+      {
+        "id": 5,
+        "title": "JetStream Memory",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(nats_server_jetstream_memory_used) / sum(nats_server_jetstream_memory_max) * 100",
+            "legendFormat": "Memory %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 70},
+                {"color": "red", "value": 90}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 6, "w": 4, "x": 16, "y": 0}
+      },
+      {
+        "id": 6,
+        "title": "Active Streams",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "nats_server_jetstream_streams",
+            "legendFormat": "Streams"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 4, "x": 20, "y": 0}
+      },
+      {
+        "id": 10,
+        "title": "Message Rate by Node",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(nats_server_in_msgs_total[1m])",
+            "legendFormat": "{{instance}} - Inbound"
+          },
+          {
+            "expr": "rate(nats_server_out_msgs_total[1m])",
+            "legendFormat": "{{instance}} - Outbound"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Messages/sec",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6}
+      },
+      {
+        "id": 11,
+        "title": "Byte Rate by Node",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(nats_server_in_bytes_total[1m])",
+            "legendFormat": "{{instance}} - Inbound"
+          },
+          {
+            "expr": "rate(nats_server_out_bytes_total[1m])",
+            "legendFormat": "{{instance}} - Outbound"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Bytes/sec",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6}
+      },
+      {
+        "id": 20,
+        "title": "Stream Messages",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "nats_server_jetstream_stream_messages{stream_name=~\"CIM_.*\"}",
+            "format": "table"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "__name__": true,
+                "job": true
+              },
+              "renameByName": {
+                "stream_name": "Stream",
+                "Value": "Messages"
+              }
+            }
+          }
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 14}
+      },
+      {
+        "id": 21,
+        "title": "Consumer Lag",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "nats_server_jetstream_consumer_num_pending{consumer_name=~\".*_processor\"}",
+            "format": "table"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "__name__": true,
+                "job": true
+              },
+              "renameByName": {
+                "consumer_name": "Consumer",
+                "stream_name": "Stream",
+                "Value": "Pending"
+              }
+            }
+          }
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 14}
+      },
+      {
+        "id": 22,
+        "title": "Connection Count by Node",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "nats_server_total_connections",
+            "legendFormat": "{{instance}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Connections",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 14}
+      },
+      {
+        "id": 30,
+        "title": "Memory Usage by Node",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "nats_server_mem",
+            "legendFormat": "{{instance}} - Used"
+          },
+          {
+            "expr": "nats_server_mem_max",
+            "legendFormat": "{{instance}} - Max"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Bytes",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 22}
+      },
+      {
+        "id": 31,
+        "title": "CPU Usage by Node",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "nats_server_cpu",
+            "legendFormat": "{{instance}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Percentage",
+            "min": 0,
+            "max": 100
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 22}
+      },
+      {
+        "id": 40,
+        "title": "JetStream API Requests",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(nats_server_jetstream_api_total[1m])",
+            "legendFormat": "{{instance}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Requests/sec",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 30}
+      },
+      {
+        "id": 41,
+        "title": "JetStream API Errors",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(nats_server_jetstream_api_errors_total[1m])",
+            "legendFormat": "{{instance}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Errors/sec",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 30}
+      },
+      {
+        "id": 42,
+        "title": "Authentication Failures",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(nats_server_auth_failures_total[1m])",
+            "legendFormat": "{{instance}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Failures/sec",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 30}
+      }
+    ]
+  }
+}

@@ -3,17 +3,27 @@
  * All rights reserved.
  */
 
-pub mod adapters;
-pub mod application;
+//! CIM Claude Adapter
+//!
+//! A pure Claude API integration adapter for CIM systems.
+//! This adapter provides a clean interface to Claude's API
+//! without any orchestration or infrastructure concerns.
+//!
+//! Responsibilities:
+//! - Claude API client implementation
+//! - Request/response mapping
+//! - Error handling for Claude-specific errors
+//! - Rate limiting and retry logic
+//!
+//! Does NOT include:
+//! - NATS integration (handled by the parent CIM)
+//! - GUI components (separate cim-claude-gui module)
+//! - Service orchestration (handled by the parent CIM)
+
+pub mod client;
 pub mod domain;
-pub mod infrastructure;
-pub mod ports;
+pub mod error;
 
-
+pub use client::ClaudeClient;
 pub use domain::*;
-
-// CIM Expert functionality for module integration
-pub use application::cim_expert_service::{
-    CimExpertService, CimExpertClient, CimExpertQuery, CimExpertResponse, 
-    CimExpertTopic, SessionContext, ConsultationMetadata
-};
+pub use error::ClaudeError;

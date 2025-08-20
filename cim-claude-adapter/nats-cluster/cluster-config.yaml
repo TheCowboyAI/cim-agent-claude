@@ -1,0 +1,99 @@
+# NATS Cluster Configuration for CIM Claude Adapter
+# Production 3-node cluster with JetStream, Object Store, and KV
+
+# Server identification and clustering
+server_name: "nats-node-1"
+port: 4222
+monitor_port: 8222
+http_port: 8080
+
+# Cluster configuration
+cluster:
+  name: "cim-claude-cluster"
+  listen: 0.0.0.0:6222
+  routes:
+    - nats://nats-node-2:6222
+    - nats://nats-node-3:6222
+  
+# JetStream configuration
+jetstream:
+  enabled: true
+  store_dir: "/opt/nats/jetstream"
+  max_memory_store: 1GB
+  max_file_store: 10GB
+  
+# Account-based security configuration  
+accounts:
+  # System account for internal operations
+  $SYS:
+    users:
+      - user: "system"
+        password: "$2a$10$T0yA2ZyRnjfMoXqeQyqAcO8VRhgOyFhWw4mPzKdK7fELKJgJ6oKzO"
+        
+  # Claude adapter account
+  CIM_CLAUDE_ADAPTER:
+    jetstream:
+      max_memory: 2GB
+      max_file: 20GB
+      max_streams: 50
+      max_consumers: 200
+    users:
+      - user: "claude_admin"
+        password: "$2a$10$UQcVzYKOKPHzQhYxKzKzO.K8UcYKOKPHzQhYxKzKzO.K8UcYKOKPHz"
+        permissions:
+          publish:
+            allow: ["claude.>"]
+          subscribe:
+            allow: ["claude.>", "_INBOX.>"]
+            
+      - user: "claude_service"
+        password: "$2a$10$VRdVzYKOKPHzQhYxKzKzO.K8UcYKOKPHzQhYxKzKzO.K8UcYKOKPHz"
+        permissions:
+          publish:
+            allow: ["claude.conv.>", "claude.tool.>"]
+          subscribe:
+            allow: ["claude.conv.>", "claude.tool.>", "_INBOX.>"]
+            
+      - user: "claude_readonly"  
+        password: "$2a$10$WSeVzYKOKPHzQhYxKzKzO.K8UcYKOKPHzQhYxKzKzO.K8UcYKOKPHz"
+        permissions:
+          subscribe:
+            allow: ["claude.conv.evt.>", "claude.conv.resp.>"]
+
+# Logging configuration
+log:
+  file: "/var/log/nats/nats.log"
+  time: true
+  debug: false
+  trace: false
+  logtime: true
+
+# Performance and limits
+max_connections: 65536
+max_subscriptions: 0
+max_pending: 67108864  # 64MB
+max_payload: 1048576   # 1MB
+
+# TLS configuration (production)
+tls:
+  cert_file: "/opt/nats/certs/server.crt"
+  key_file: "/opt/nats/certs/server.key"
+  ca_file: "/opt/nats/certs/ca.crt"
+  verify: true
+  timeout: 5
+
+# WebSocket configuration for web clients  
+websocket:
+  port: 8080
+  no_tls: false
+  same_origin: true
+  allowed_origins:
+    - "https://claude.cim.local"
+    - "https://admin.cim.local"
+
+# MQTT configuration for IoT integration
+mqtt:
+  port: 1883
+  
+# System events
+system_account: "$SYS"

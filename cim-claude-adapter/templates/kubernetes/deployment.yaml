@@ -1,0 +1,623 @@
+# CIM Claude Adapter - Kubernetes Production Deployment
+# Copyright 2025 - Cowboy AI, LLC. All rights reserved.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cim-claude
+  labels:
+    name: cim-claude
+    app.kubernetes.io/name: cim-claude-adapter
+    app.kubernetes.io/part-of: cim-ecosystem
+    environment: production
+
+---
+# Secret for Claude API Key
+apiVersion: v1
+kind: Secret
+metadata:
+  name: claude-api-secret
+  namespace: cim-claude
+type: Opaque
+stringData:
+  api-key: "your-claude-api-key-here"  # Replace with actual key
+
+---
+# ConfigMap for application configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cim-claude-config
+  namespace: cim-claude
+data:
+  config.toml: |
+    [claude]
+    model = "claude-3-sonnet-20240229"
+    max_tokens = 8192
+    temperature = 0.7
+    
+    [nats]
+    url = "nats://nats-service:4222"
+    max_reconnects = 10
+    reconnect_wait = "5s"
+    
+    [conversation]
+    max_prompt_length = 50000
+    max_exchanges = 100
+    session_timeout = "30m"
+    
+    [monitoring]
+    metrics_port = 9090
+    health_port = 8080
+    enable_tracing = true
+    
+    [logging]
+    level = "info"
+    format = "json"
+
+---
+# ServiceAccount for CIM Claude Adapter
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cim-claude-adapter
+  namespace: cim-claude
+  labels:
+    app: cim-claude-adapter
+
+---
+# ClusterRole for service operations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cim-claude-adapter
+rules:
+- apiGroups: [""]
+  resources: ["services", "endpoints", "pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+
+---
+# ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cim-claude-adapter
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cim-claude-adapter
+subjects:
+- kind: ServiceAccount
+  name: cim-claude-adapter
+  namespace: cim-claude
+
+---
+# NATS Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nats-server
+  namespace: cim-claude
+  labels:
+    app: nats-server
+    component: messaging
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nats-server
+  template:
+    metadata:
+      labels:
+        app: nats-server
+        component: messaging
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8222"
+        prometheus.io/path: "/varz"
+    spec:
+      serviceAccountName: cim-claude-adapter
+      containers:
+      - name: nats
+        image: nats:2.10-alpine
+        ports:
+        - containerPort: 4222
+          name: client
+          protocol: TCP
+        - containerPort: 6222
+          name: cluster
+          protocol: TCP
+        - containerPort: 8222
+          name: monitor
+          protocol: TCP
+        command:
+        - "nats-server"
+        - "--config"
+        - "/etc/nats/nats-server.conf"
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: CLUSTER_ADVERTISE
+          value: $(POD_NAME).nats-headless.$(POD_NAMESPACE).svc.cluster.local
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/nats
+        - name: pid
+          mountPath: /var/run/nats
+        - name: jetstream-storage
+          mountPath: /data/jetstream
+        livenessProbe:
+          httpGet:
+            path: /varz
+            port: monitor
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /connz
+            port: monitor
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          runAsNonRoot: true
+      volumes:
+      - name: config-volume
+        configMap:
+          name: nats-config
+      - name: pid
+        emptyDir: {}
+      - name: jetstream-storage
+        persistentVolumeClaim:
+          claimName: nats-jetstream-pvc
+
+---
+# NATS ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-config
+  namespace: cim-claude
+data:
+  nats-server.conf: |
+    port: 4222
+    monitor_port: 8222
+    
+    server_name: $POD_NAME
+    
+    jetstream {
+      store_dir: "/data/jetstream"
+      max_memory_store: 1GB
+      max_file_store: 10GB
+    }
+    
+    cluster {
+      name: cim-claude-cluster
+      port: 6222
+      
+      routes = [
+        nats://nats-server-0.nats-headless.cim-claude.svc.cluster.local:6222
+        nats://nats-server-1.nats-headless.cim-claude.svc.cluster.local:6222
+        nats://nats-server-2.nats-headless.cim-claude.svc.cluster.local:6222
+      ]
+      
+      cluster_advertise: $CLUSTER_ADVERTISE:6222
+      connect_retries: 30
+    }
+    
+    accounts {
+      CIM_CLAUDE: {
+        jetstream: enabled
+        users: [
+          {user: "cim-claude", password: "secure-password"}
+        ]
+      }
+    }
+
+---
+# NATS Headless Service for clustering
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats-headless
+  namespace: cim-claude
+  labels:
+    app: nats-server
+spec:
+  selector:
+    app: nats-server
+  clusterIP: None
+  ports:
+  - name: client
+    port: 4222
+    targetPort: client
+  - name: cluster
+    port: 6222
+    targetPort: cluster
+  - name: monitor
+    port: 8222
+    targetPort: monitor
+
+---
+# NATS Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats-service
+  namespace: cim-claude
+  labels:
+    app: nats-server
+spec:
+  selector:
+    app: nats-server
+  ports:
+  - name: client
+    port: 4222
+    targetPort: client
+  - name: monitor
+    port: 8222
+    targetPort: monitor
+  type: ClusterIP
+
+---
+# PersistentVolumeClaim for NATS JetStream
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nats-jetstream-pvc
+  namespace: cim-claude
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: fast-ssd  # Adjust based on your storage class
+
+---
+# CIM Claude Adapter Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cim-claude-adapter
+  namespace: cim-claude
+  labels:
+    app: cim-claude-adapter
+    component: application
+    version: "1.0.0"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: cim-claude-adapter
+  template:
+    metadata:
+      labels:
+        app: cim-claude-adapter
+        component: application
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: cim-claude-adapter
+      containers:
+      - name: cim-claude-adapter
+        image: cim-claude-adapter:v1.0.0  # Built from nix container
+        ports:
+        - containerPort: 8080
+          name: health
+          protocol: TCP
+        - containerPort: 9090
+          name: metrics
+          protocol: TCP
+        env:
+        - name: RUST_LOG
+          value: "info"
+        - name: CLAUDE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: claude-api-secret
+              key: api-key
+        - name: NATS_URL
+          value: "nats://nats-service:4222"
+        - name: CONFIG_FILE
+          value: "/etc/cim-claude/config.toml"
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/cim-claude
+        - name: tmp
+          mountPath: /tmp
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: health
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: health
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        startupProbe:
+          httpGet:
+            path: /health
+            port: health
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 10
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: config-volume
+        configMap:
+          name: cim-claude-config
+      - name: tmp
+        emptyDir: {}
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      
+      # Anti-affinity to spread pods across nodes
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - cim-claude-adapter
+              topologyKey: kubernetes.io/hostname
+      
+      # Toleration for dedicated nodes (optional)
+      tolerations:
+      - key: "app"
+        operator: "Equal"
+        value: "cim-claude"
+        effect: "NoSchedule"
+
+---
+# Service for CIM Claude Adapter
+apiVersion: v1
+kind: Service
+metadata:
+  name: cim-claude-adapter-service
+  namespace: cim-claude
+  labels:
+    app: cim-claude-adapter
+    component: application
+spec:
+  selector:
+    app: cim-claude-adapter
+  ports:
+  - name: health
+    port: 8080
+    targetPort: health
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: metrics
+    protocol: TCP
+  type: ClusterIP
+
+---
+# Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cim-claude-adapter-hpa
+  namespace: cim-claude
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cim-claude-adapter
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+
+---
+# Pod Disruption Budget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cim-claude-adapter-pdb
+  namespace: cim-claude
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: cim-claude-adapter
+
+---
+# Network Policy for security
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cim-claude-network-policy
+  namespace: cim-claude
+spec:
+  podSelector:
+    matchLabels:
+      app: cim-claude-adapter
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-system
+    - podSelector:
+        matchLabels:
+          app: prometheus
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 9090
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: nats-server
+    ports:
+    - protocol: TCP
+      port: 4222
+  - to: []  # Allow external Claude API access
+    ports:
+    - protocol: TCP
+      port: 443
+  - to: []  # Allow DNS resolution
+    ports:
+    - protocol: UDP
+      port: 53
+
+---
+# Ingress for external access
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cim-claude-adapter-ingress
+  namespace: cim-claude
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/rate-limit: "1000"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+  - hosts:
+    - cim-claude.prod.cowboy-ai.com
+    secretName: cim-claude-tls
+  rules:
+  - host: cim-claude.prod.cowboy-ai.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: cim-claude-adapter-service
+            port:
+              number: 8080
+
+---
+# ServiceMonitor for Prometheus scraping
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cim-claude-adapter-metrics
+  namespace: cim-claude
+  labels:
+    app: cim-claude-adapter
+spec:
+  selector:
+    matchLabels:
+      app: cim-claude-adapter
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+  - port: health
+    interval: 30s
+    path: /health
+
+---
+# ServiceMonitor for NATS
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: nats-server-metrics
+  namespace: cim-claude
+  labels:
+    app: nats-server
+spec:
+  selector:
+    matchLabels:
+      app: nats-server
+  endpoints:
+  - port: monitor
+    interval: 30s
+    path: /varz
