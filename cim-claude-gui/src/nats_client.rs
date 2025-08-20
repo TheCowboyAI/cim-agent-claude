@@ -52,12 +52,10 @@ impl NatsComponent {
     }
 }
 
-/// NATS subscription for events - proper Iced subscription pattern
+/// NATS subscription for events - simple stream-based subscription
 pub fn events_subscription() -> iced::Subscription<Message> {
-    iced::Subscription::unfold(
-        "nats-events", 
-        (), 
-        |_state| async {
+    iced::subscription::channel("nats-events", 100, |mut output| async move {
+        loop {
             // Connect to NATS and listen for events
             match async_nats::connect("nats://localhost:4222").await {
                 Ok(client) => {
@@ -71,7 +69,7 @@ pub fn events_subscription() -> iced::Subscription<Message> {
                             while let Some(message) = subscription.next().await {
                                 match serde_json::from_slice::<EventEnvelope>(&message.payload) {
                                     Ok(event_envelope) => {
-                                        return (Message::ConversationEvent(event_envelope), ());
+                                        let _ = output.send(Message::ConversationEvent(event_envelope)).await;
                                     }
                                     Err(e) => {
                                         error!("Failed to deserialize event: {}", e);
@@ -91,9 +89,8 @@ pub fn events_subscription() -> iced::Subscription<Message> {
             
             // If we get here, something went wrong, wait and retry
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-            (Message::ConnectionError("NATS connection lost".to_string()), ())
         }
-    )
+    })
 }
 
 /// Legacy client struct for backward compatibility - now just a placeholder
