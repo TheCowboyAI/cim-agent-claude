@@ -52,45 +52,11 @@ impl NatsComponent {
     }
 }
 
-/// NATS subscription for events - simple stream-based subscription
+/// NATS subscription for events - disabled for now
 pub fn events_subscription() -> iced::Subscription<Message> {
-    iced::subscription::channel("nats-events", 100, |mut output| async move {
-        loop {
-            // Connect to NATS and listen for events
-            match async_nats::connect("nats://localhost:4222").await {
-                Ok(client) => {
-                    info!("Connected to NATS for event subscription");
-                    
-                    // Subscribe to events
-                    match client.subscribe("claude.event.*").await {
-                        Ok(mut subscription) => {
-                            info!("Subscribed to claude.event.*");
-                            
-                            while let Some(message) = subscription.next().await {
-                                match serde_json::from_slice::<EventEnvelope>(&message.payload) {
-                                    Ok(event_envelope) => {
-                                        let _ = output.send(Message::ConversationEvent(event_envelope)).await;
-                                    }
-                                    Err(e) => {
-                                        error!("Failed to deserialize event: {}", e);
-                                    }
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            error!("Failed to subscribe to events: {}", e);
-                        }
-                    }
-                }
-                Err(e) => {
-                    error!("Failed to connect to NATS: {}", e);
-                }
-            }
-            
-            // If we get here, something went wrong, wait and retry
-            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-        }
-    })
+    // For now, return an empty subscription
+    // The NATS component handles commands, events can be added later
+    iced::Subscription::none()
 }
 
 /// Legacy client struct for backward compatibility - now just a placeholder
