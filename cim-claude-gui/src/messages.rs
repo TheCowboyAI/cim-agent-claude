@@ -49,8 +49,10 @@ pub enum Message {
     },
     
     // Event Handling (from NATS)
+    EventReceived(EventEnvelope),
     ConversationEvent(EventEnvelope),
     ConversationUpdated(ConversationAggregate),
+    CommandSent,
     
     // UI State Changes
     TabSelected(Tab),
@@ -78,6 +80,7 @@ pub enum Message {
     ThemeToggled,
     
     // Error Handling
+    Error(String),
     ErrorOccurred(String),
     ErrorDismissed,
 }

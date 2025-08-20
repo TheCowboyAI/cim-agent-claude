@@ -8,11 +8,18 @@
 //! Native desktop application for managing Claude conversations via NATS.
 //! Built with Iced using The Elm Architecture (TEA).
 
-use cim_claude_gui::CimManagerApp;
+use cim_claude_gui::{CimManagerApp, nats_client};
 
-fn main() -> iced::Result {
+#[tokio::main]
+async fn main() -> iced::Result {
     // Initialize logging
     tracing_subscriber::fmt::init();
+    
+    // Initialize NATS client before starting GUI - proper TEA architecture
+    if let Err(e) = nats_client::initialize_nats().await {
+        eprintln!("Failed to initialize NATS: {}", e);
+        std::process::exit(1);
+    }
     
     iced::application(
         "CIM Claude GUI Manager", 

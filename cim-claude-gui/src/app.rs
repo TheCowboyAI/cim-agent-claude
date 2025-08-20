@@ -18,14 +18,13 @@ use cim_claude_adapter::{
 };
 use crate::{
     messages::{Message, Tab, HealthStatus, SystemMetrics, CimExpertConversation, CimExpertMessage, CimExpertMessageRole},
-    nats_client::{GuiNatsClient, NatsComponent},
+    nats_client::{commands, nats_subscription},
 };
 use cim_claude_adapter::CimExpertTopic;
 
-/// Main CIM Manager Application State
+/// Main CIM Manager Application State - Pure UI State Only
 pub struct CimManagerApp {
-    // Connection State
-    nats_client: GuiNatsClient,
+    // Connection State - UI state only
     nats_url: String,
     connected: bool,
     connection_error: Option<String>,
@@ -56,10 +55,10 @@ pub struct CimManagerApp {
 
 impl CimManagerApp {
     pub fn new() -> (Self, Task<Message>) {
+        // NATS is already initialized in main - no connection needed here
         let app = Self {
-            nats_client: GuiNatsClient::new(),
             nats_url: "nats://localhost:4222".to_string(),
-            connected: false,
+            connected: true, // NATS initialized at startup
             connection_error: None,
             
             current_tab: Tab::Dashboard,
@@ -83,6 +82,7 @@ impl CimManagerApp {
             cim_expert_selected_topic: CimExpertTopic::Architecture,
         };
         
+        // NATS already connected at startup
         (app, Task::none())
     }
     
@@ -95,17 +95,14 @@ impl CimManagerApp {
     }
     
     pub fn subscription(&self) -> iced::Subscription<Message> {
-        crate::nats_client::events_subscription()
+        nats_subscription()
     }
     
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Connect(url) => {
-                self.nats_url = url.clone();
-                self.connection_error = None;
-                
-                let stream = self.nats_client.connect(url);
-                Task::run(stream, |message| message)
+            Message::Connect(_url) => {
+                // NATS connection handled at startup - no runtime connection needed
+                Task::none()
             }
             
             Message::Connected => {
@@ -153,12 +150,10 @@ impl CimManagerApp {
                     
                     let command_envelope = command.with_metadata(correlation_id);
                     
+                    // Pure TEA: return Command for async operation
                     Task::perform(
-                        NatsComponent::publish_command(command_envelope),
-                        |result| match result {
-                            Ok(_) => Message::Connected, // Success message
-                            Err(e) => Message::ErrorOccurred(e),
-                        }
+                        commands::publish_command(command_envelope),
+                        |message| message
                     )
                 } else {
                     self.error_message = Some("Not connected to NATS".to_string());
@@ -176,7 +171,7 @@ impl CimManagerApp {
                 }
             }
             
-            Message::ConversationEvent(event_envelope) => {
+            Message::EventReceived(event_envelope) => {
                 // Update local state based on received events
                 self.recent_events.insert(0, event_envelope.clone());
                 if self.recent_events.len() > 100 {
@@ -186,6 +181,26 @@ impl CimManagerApp {
                 // Update conversation state if needed
                 // Note: Event handling can be extended here based on specific event types
                 
+                Task::none()
+            }
+            
+            Message::ConversationEvent(event_envelope) => {
+                // Legacy compatibility - redirect to EventReceived
+                self.recent_events.insert(0, event_envelope.clone());
+                if self.recent_events.len() > 100 {
+                    self.recent_events.truncate(100);
+                }
+                Task::none()
+            }
+            
+            Message::CommandSent => {
+                // Command was successfully sent
+                self.error_message = None;
+                Task::none()
+            }
+            
+            Message::Error(error) => {
+                self.error_message = Some(error);
                 Task::none()
             }
             
@@ -296,20 +311,9 @@ impl CimManagerApp {
             
             // Health and Monitoring Message Handlers
             Message::HealthCheckRequested => {
-                if self.connected {
-                    // Trigger a health check request to the CIM system
-                    let client = self.nats_client.clone();
-                    Task::perform(
-                        async move { client.request_health_check().await },
-                        |result| match result {
-                            Ok(health) => Message::HealthCheckReceived(health),
-                            Err(e) => Message::ErrorOccurred(format!("Health check failed: {}", e)),
-                        }
-                    )
-                } else {
-                    self.error_message = Some("Not connected to NATS".to_string());
-                    Task::none()
-                }
+                // Health checks now come through events automatically
+                // No manual request needed with proper NATS integration
+                Task::none()
             }
             
             
