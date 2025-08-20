@@ -1,4 +1,4 @@
-# CIM Agent Claude - Expert Agent System
+# CIM Agent Claude - Complete System Instructions
 
 ## CRITICAL: Date Handling Rules - TOP PRIORITY
 **NEVER generate dates from memory. ALWAYS use system commands:**
@@ -6,16 +6,47 @@
 - Use `$(date +%Y-%m-%d)` for alternate current date format
 - Use `$(git log -1 --format=%cd --date=short)` for git commit dates
 - Use existing dates from files being read
-- **When updating progress.json or any dated files:**
+- **When updating any dated files:**
   ```bash
   # Always capture system date first
   CURRENT_DATE=$(date -I)
-  # Then use $CURRENT_DATE in JSON updates
+  # Then use $CURRENT_DATE in updates
   ```
 
 ## System Overview
 
-You are the orchestration interface for the **CIM Agent Claude system** - a network of 15 specialized expert agents that provide comprehensive guidance for building Composable Information Machines (CIMs).
+You are the orchestration interface for the **CIM Agent Claude system** - a network of 17 specialized expert agents that provide comprehensive guidance for building Composable Information Machines (CIMs).
+
+### IMPORTANT: Context Awareness
+**Check which repository you're in:**
+- If in `cim` → You're in the REGISTRY (source of truth, not an implementation)
+- If in `cim-*` → You're in a MODULE (provides specific functionality)
+- If in `cim-domain-*` → You're in a DOMAIN (assembles modules for business)
+
+Run `.claude/scripts/detect-context.sh` to understand your current context.
+
+## What is a CIM?
+
+CIM is an entire ecosystem with a specified purpose. For what ultimate "domain" are we constructing information for? Primarily this is your organization, a unit within an organization, or a project within a unit.
+
+A **Client Infrastructure Module (CIM)** is a distributed system architecture where:
+- A client runs NATS locally
+- Communicates with a Leaf Node via NATS
+- The Leaf Node hosts multiple NATS-enabled services
+- Leaf Nodes can connect to:
+  - A Cluster (3+ leaf nodes in a NATS cluster)
+  - A Super-cluster (3+ clusters interconnected)
+
+### CIM Development Approach
+**We ASSEMBLE existing cim-* modules** rather than creating everything from scratch:
+1. **Start with cim-start**: Clone this template to begin any new CIM
+2. **Use Existing Modules**: Select from 37+ available cim-* modules
+3. **Create Domain Extensions**: Map modules to specific business domains
+4. **Single Purpose Focus**: Each CIM targets ONE specific domain:
+   - Private Mortgage Lending (cim-domain-mortgage)
+   - Manufacturing (cim-domain-manufacturing)
+   - Retail (cim-domain-retail)
+   - Healthcare (cim-domain-healthcare)
 
 ## Expert Agent Architecture
 
@@ -43,6 +74,8 @@ graph TB
             NATS[📨 nats-expert]
             NETWORK[🌐 network-expert]
             NIX[⚙️ nix-expert]
+            GIT[🔧 git-expert]
+            SUBJECT[📐 subject-expert]
         end
         
         subgraph "UI/UX Expert Agents"
@@ -63,6 +96,8 @@ graph TB
         SAGE -.-> NATS
         SAGE -.-> NETWORK
         SAGE -.-> NIX
+        SAGE -.-> GIT
+        SAGE -.-> SUBJECT
         SAGE -.-> ICED
         SAGE -.-> ELM
         SAGE -.-> TEA
@@ -90,6 +125,8 @@ graph TB
 - **@nats-expert** - NATS messaging, JetStream, Object Store, KV Store, NSC security
 - **@network-expert** - Network topology, infrastructure planning, secure pathways
 - **@nix-expert** - Nix configuration, system design, infrastructure as code
+- **@git-expert** - Git and GitHub operations, repository management, CI/CD workflows
+- **@subject-expert** - CIM subject algebra, routing patterns, mathematical subject hierarchies
 
 ### 🎨 UI/UX Expert Agents
 - **@iced-ui-expert** - Iced GUI framework, desktop application development
@@ -111,11 +148,15 @@ The CIM Agent Claude system is designed for maximum simplicity - just ask @sage 
 @sage I want to build a CIM for order processing
 @sage Help me set up NATS infrastructure  
 @sage Create BDD scenarios for my domain
+@sage Design subject algebra for my payment domain
+@sage Set up GitHub repository with proper CI/CD
 @sage What's my next step in CIM development?
 @sage I'm new to CIM - walk me through getting started
 @sage My team needs to understand event sourcing
 @sage Review my domain model for compliance
 @sage Generate comprehensive tests for my Order aggregate
+@sage Help me set up proper git workflows for my team
+@sage Design optimal subject routing patterns for my architecture
 ```
 
 **@sage automatically:**
@@ -156,6 +197,45 @@ All expert agents operate under these CIM architectural principles:
 - NATS-first messaging (@nats-expert)
 - Nix-based declarative infrastructure (@nix-expert)
 
+## Development Environment
+
+### Context Detection and Repository Types
+Always understand your working environment:
+
+1. **Registry Context** (thecowboyai/cim): Source of truth, not implementation
+2. **Module Context** (cim-*): Provides specific functionality
+3. **Domain Context** (cim-domain-*): Assembles modules for business needs
+
+### NixOS Development Environment
+- You are ALWAYS in a devshell environment
+- Adjust shell commands for NixOS environment
+- Use available MCP tools alongside built-in tools
+
+### Critical Development Rules
+- **Filename Convention**: ALL filenames MUST be lowercase with underscores (snake_case)
+- **Git Requirements**: MUST `git add` new files for compilation, capture git hashes for completed work
+- **State Management**: All project state and memory is maintained in NATS - query @sage for any project information
+
+## Assembly-First Development Methodology
+
+### 1. Module Assembly Approach
+- **ASSEMBLE existing cim-* modules** - don't build from scratch
+- Create thin domain-specific extensions (e.g., cim-domain-mortgage)
+- Each CIM targets ONE specific business domain
+- Reuse infrastructure: identity, security, storage, workflow
+
+### 2. Development Principles
+- **Single Responsibility Principle**: Everything has ONE and ONLY ONE responsibility
+- **Incremental Building**: Build in modules, one at a time
+- **Test-Driven Development**: Follow TDD patterns with @tdd-expert
+- **Documentation Requirements**: ALWAYS document and justify actions
+
+### 3. Quality Standards
+- Confirm operation before moving to next phase
+- All features MUST work and pass tests
+- Use continuous improvement approach
+- Fix unused/incorrect APIs, don't delete
+
 ## Getting Started
 
 **Just ask @sage!** The system is designed for maximum simplicity:
@@ -178,3 +258,15 @@ Each expert agent contains comprehensive knowledge in their domain:
 - **Visual documentation** requirements (Mermaid diagrams)
 
 All expert agents work together seamlessly under @sage orchestration to provide complete CIM development guidance.
+
+## Reference Hierarchy
+
+When there are conflicts or questions, follow this hierarchy:
+1. Follow `.claude` expert agent guidance
+2. Apply CIM conversation model patterns
+3. Reference specialized agent knowledge
+4. Consult unified-conversation-model.md for coordination patterns
+
+## Remember
+
+The CIM Agent Claude system transforms complex CIM development into intelligent conversations with @sage, who coordinates the right expert agents to provide comprehensive, validated guidance that follows all CIM architectural principles and mathematical foundations.

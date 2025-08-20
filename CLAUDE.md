@@ -1,104 +1,207 @@
-# CLAUDE.md
+# CIM Agent Claude - Expert Agent Network
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with the CIM Agent Claude repository.
 
-## Repository Context
+## Repository Overview
 
-This is **cim-agent-claude**, a specialized Claude agent configuration repository for CIM (Composable Information Machine) development. It contains expert agents, instructions, and templates to guide CIM creation and domain modeling.
+**cim-agent-claude** is an intelligent expert agent network for CIM (Composable Information Machine) development. This repository contains a comprehensive system of 17 specialized expert agents that provide world-class guidance for building production-ready CIMs.
 
-**Key Point**: This is NOT a traditional codebase with source code, but rather a configuration repository containing:
-- Specialized expert agents (in `.claude/agents/`)
-- CIM development instructions and patterns
-- Domain creation templates and workflows
-- NATS infrastructure configurations
+**This is a Configuration Repository containing:**
+- **17 Specialized Expert Agents** (in `.claude/agents/`)
+- **Intelligent Agent Orchestration** via @sage master coordinator
+- **Comprehensive CIM Development Guidance** from domain discovery to production deployment
+- **Mathematical Foundations** based on Category Theory and Graph Theory
+- **Event-Driven Architecture Patterns** with NO CRUD operations
 
-## Common Commands
+## How to Use the Expert Agent Network
 
-### Development Commands
-```bash
-# Check repository type and context
-ls -la .claude/
+### 🚀 **Simply Ask @sage for Any CIM Task**
 
-# View available expert agents
-ls .claude/agents/
+The CIM Agent Claude system is designed for maximum simplicity - just ask @sage for anything you need:
 
-# Start CIM development workflow
-# Use the /sage command through Claude to orchestrate complete CIM development
-
-# Access specific expert guidance
-# Use /cim, /ddd, /eventstorming, /nix, /nats, /network, or /domain commands
+```
+@sage I want to build a CIM for order processing
+@sage Help me set up NATS infrastructure  
+@sage Create BDD scenarios for my domain
+@sage Design subject algebra for my payment domain
+@sage Set up GitHub repository with proper CI/CD
+@sage What's my next step in CIM development?
+@sage I'm new to CIM - walk me through getting started
+@sage My team needs to understand event sourcing
+@sage Review my domain model for compliance
+@sage Generate comprehensive tests for my Order aggregate
 ```
 
-### Agent System Commands
-The repository uses Claude's Task tool to invoke specialized agents:
-- `@sage` - Master orchestrator for complete CIM development
-- `@cim-expert` - CIM architecture and mathematical foundations
-- `@ddd-expert` - Domain-driven design and boundary analysis
-- `@event-storming-expert` - Collaborative domain discovery
-- `@nix-expert` - System configuration and infrastructure
-- `@nats-expert` - Event streaming and message infrastructure  
-- `@network-expert` - Network topology and infrastructure
-- `@domain-expert` - Domain creation and validation
+**@sage automatically:**
+- Analyzes your request and determines which expert agents are needed
+- Coordinates multi-agent workflows for complex tasks
+- Synthesizes unified guidance from multiple expert agents
+- Provides comprehensive, validated CIM guidance
 
-## Architecture Overview
+### 🤖 **17 Specialized Expert Agents**
 
-### CIM Framework Structure
+#### **🎭 Master Orchestrator**
+- **@sage** - Intelligent coordination of all expert agents for unified CIM guidance
+
+#### **🏗️ Domain Expert Agents (5)**
+- **@cim-expert** - CIM architecture, mathematical foundations, Category Theory, Graph Theory
+- **@cim-domain-expert** - CIM domain-specific architecture guidance, ecosystem planning
+- **@ddd-expert** - Domain-driven design, aggregate boundaries, state machines
+- **@event-storming-expert** - Collaborative domain discovery, event identification
+- **@domain-expert** - Domain creation, cim-graph generation, mathematical validation
+
+#### **🧪 Development Expert Agents (3)**
+- **@bdd-expert** - Behavior-Driven Development, Gherkin syntax, User Stories with Context Graphs
+- **@tdd-expert** - Test-Driven Development, creating Unit Tests IN ADVANCE, bug reproduction
+- **@qa-expert** - Quality assurance, compliance analysis, rule violation documentation
+
+#### **🌐 Infrastructure Expert Agents (5)**
+- **@nats-expert** - NATS messaging, JetStream, Object Store, KV Store, NSC security
+- **@network-expert** - Network topology, infrastructure planning, secure pathways
+- **@nix-expert** - Nix configuration, system design, infrastructure as code
+- **@git-expert** - Git and GitHub operations, repository management, CI/CD workflows
+- **@subject-expert** - CIM subject algebra, routing patterns, mathematical subject hierarchies
+
+#### **🎨 UI/UX Expert Agents (3)**
+- **@iced-ui-expert** - Iced GUI framework, desktop application development
+- **@elm-architecture-expert** - Elm Architecture patterns, functional UI design
+- **@cim-tea-ecs-expert** - TEA (The Elm Architecture) + ECS integration patterns
+
+## Expert Agent Network Architecture
+
+### Intelligent Multi-Agent Coordination
+```mermaid
+graph TB
+    subgraph "CIM Agent Claude System"
+        USER[User Request]
+        SAGE[🎭 SAGE - Master Orchestrator]
+        
+        subgraph "Domain Expert Agents"
+            CIM[🏗️ cim-expert]
+            CIM_DOMAIN[🌐 cim-domain-expert]
+            DDD[📐 ddd-expert]
+            ES[🔍 event-storming-expert]
+            DOMAIN[📊 domain-expert]
+        end
+        
+        subgraph "Development Expert Agents"
+            BDD[📋 bdd-expert]
+            TDD[🧪 tdd-expert]
+            QA[✅ qa-expert]
+        end
+        
+        subgraph "Infrastructure Expert Agents"
+            NATS[📨 nats-expert]
+            NETWORK[🌐 network-expert]
+            NIX[⚙️ nix-expert]
+            GIT[🔧 git-expert]
+            SUBJECT[📐 subject-expert]
+        end
+        
+        subgraph "UI/UX Expert Agents"
+            ICED[🎨 iced-ui-expert]
+            ELM[🔄 elm-architecture-expert]
+            TEA[⚡ cim-tea-ecs-expert]
+        end
+        
+        USER --> SAGE
+        SAGE -.-> CIM
+        SAGE -.-> CIM_DOMAIN
+        SAGE -.-> DDD
+        SAGE -.-> ES
+        SAGE -.-> DOMAIN
+        SAGE -.-> BDD
+        SAGE -.-> TDD
+        SAGE -.-> QA
+        SAGE -.-> NATS
+        SAGE -.-> NETWORK
+        SAGE -.-> NIX
+        SAGE -.-> GIT
+        SAGE -.-> SUBJECT
+        SAGE -.-> ICED
+        SAGE -.-> ELM
+        SAGE -.-> TEA
+    end
 ```
-CIM Ecosystem:
-├── Client (Local NATS) → Development environment
-├── Leaf Node → Single server with multiple services
-├── Cluster → 3+ leaf nodes for high availability  
-└── Super-cluster → 3+ clusters for global distribution
 
-CIM Development Approach:
-├── ASSEMBLE existing cim-* modules (37+ available)
-├── EXTEND with domain-specific functionality
-├── CONFIGURE for specific business domains
-└── DEPLOY using NATS-first architecture
-```
+### CIM Development Journey
+1. **Domain Discovery**: @event-storming-expert → @ddd-expert → @domain-expert
+2. **Architecture Design**: @cim-expert → @cim-domain-expert → @subject-expert
+3. **Development Workflow**: @bdd-expert → @tdd-expert → @qa-expert
+4. **Infrastructure Setup**: @nats-expert → @network-expert → @nix-expert → @git-expert
+5. **UI/UX Implementation**: @elm-architecture-expert → @cim-tea-ecs-expert → @iced-ui-expert
+6. **Quality Assurance**: @qa-expert validates all outputs across expert agents
 
-### Agent Orchestration Workflow
-1. **SAGE Orchestration**: Master agent routes requests to appropriate experts
-2. **Multi-Agent Coordination**: Complex tasks involve multiple specialized agents
-3. **Domain Discovery**: Event Storming → DDD Analysis → Domain Creation
-4. **Infrastructure Setup**: NATS → Network → Nix Configuration
-5. **Integration**: Unified guidance synthesized from all experts
+## Core CIM Principles
 
-## Key Principles
+All expert agents operate under these foundational CIM architectural principles:
 
-### CIM Development Standards
-- **Assembly-First**: Use existing cim-* modules, don't rebuild from scratch
-- **Event-Driven**: All state changes through immutable events, NO CRUD operations
-- **NATS-First**: All communication via NATS messaging patterns
-- **Domain-Focused**: Each CIM targets ONE specific business domain
-- **Mathematical Foundation**: Based on Category Theory, Graph Theory, and IPLD
+### 🔄 **Event-Driven Architecture**
+- NO CRUD operations (enforced by @qa-expert)
+- Everything flows through immutable events
+- All events have correlation and causation IDs
 
-### Agent Interaction Patterns
+### 📐 **Mathematical Foundations**  
+- Category Theory and Graph Theory foundations (@cim-expert)
+- Geometric semantic spaces (@cim-expert)
+- Structure-preserving transformations
+
+### 🎯 **Domain-Driven Design**
+- Perfect domain isolation (@ddd-expert)
+- Event-sourced aggregates (@ddd-expert)
+- Bounded contexts (@event-storming-expert)
+
+### 🧪 **Quality-First Development**
+- BDD scenarios with Context Graphs (@bdd-expert)
+- Tests created IN ADVANCE (@tdd-expert)
+- Continuous compliance validation (@qa-expert)
+
+### 🏗️ **Composable Architecture**
+- Assemble existing cim-* modules (@cim-domain-expert)
+- NATS-first messaging (@nats-expert)
+- Subject algebra optimization (@subject-expert)
+- Nix-based declarative infrastructure (@nix-expert)
+
+### Expert Agent Coordination Patterns
 - **PROACTIVE Guidance**: Agents automatically guide through CIM development journey
-- **Collaborative Sessions**: Multiple agents work together on complex tasks
-- **Context-Aware**: Agents understand current development stage and adapt guidance
-- **Validation-Driven**: All outputs validated against CIM architectural principles
+- **Multi-Agent Workflows**: Complex tasks coordinated across multiple expert agents
+- **Context-Aware Intelligence**: Agents understand current development stage and adapt
+- **Validation-Driven Quality**: All outputs validated by @qa-expert against CIM principles
 
-## File Structure
+## Repository Structure
 
-### Core Configuration Files
+### Expert Agent Network Configuration
 ```
 .claude/
-├── CLAUDE.md                  # This file - enhanced development guidance
-├── instructions.md            # Primary CIM development instructions
-├── commands.md               # Slash commands for expert access
-├── agents/                   # Specialized expert agent configurations
-│   ├── sage.md              # Master orchestrator agent
-│   ├── cim-expert.md        # Architecture and foundations
-│   ├── ddd-expert.md        # Domain-driven design
-│   ├── event-storming-expert.md  # Collaborative discovery
-│   ├── nix-expert.md        # System configuration
-│   ├── nats-expert.md       # Event infrastructure
-│   ├── network-expert.md    # Network topology
-│   └── domain-expert.md     # Domain creation
-├── instructions/            # Detailed operational guidance
-├── contexts/               # Context-specific instructions
-└── settings.local.json     # Claude Code permissions configuration
+├── 📋 System Interface (3 files)
+│   ├── instructions.md              # Primary @sage interface
+│   ├── unified-conversation-model.md # Conversation patterns & CIM philosophy
+│   └── init.md                      # Template initialization logic
+│
+├── 🤖 Expert Agent Network (17 files)
+│   └── agents/
+│       ├── sage.md                  # 🎭 Master orchestrator
+│       ├── cim-expert.md           # 🏗️ Architecture & foundations
+│       ├── cim-domain-expert.md    # 🌐 Domain-specific architecture
+│       ├── ddd-expert.md           # 📐 Domain-driven design
+│       ├── event-storming-expert.md # 🔍 Collaborative discovery
+│       ├── domain-expert.md        # 📊 Domain creation
+│       ├── bdd-expert.md           # 📋 Behavior-driven development
+│       ├── tdd-expert.md           # 🧪 Test-driven development
+│       ├── qa-expert.md            # ✅ Quality assurance
+│       ├── nats-expert.md          # 📨 NATS messaging
+│       ├── network-expert.md       # 🌐 Network topology
+│       ├── nix-expert.md           # ⚙️ Nix configuration
+│       ├── git-expert.md           # 🔧 Git & GitHub operations
+│       ├── subject-expert.md       # 📐 CIM subject algebra
+│       ├── iced-ui-expert.md       # 🎨 Desktop GUI
+│       ├── elm-architecture-expert.md # 🔄 Functional UI
+│       └── cim-tea-ecs-expert.md   # ⚡ TEA+ECS integration
+│
+└── 🛠️ Operational Files (5 files)
+    ├── scripts/detect-context.sh   # Context detection
+    ├── security/settings.json      # Security config
+    └── settings.local.json         # Claude Code permissions
 ```
 
 ## Getting Started

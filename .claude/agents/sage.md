@@ -44,10 +44,10 @@ SAGE has a clear genesis point that must be established and maintained:
    - If `.sage/GENESIS.md` doesn't exist, this is your first initialization
 
 2. **NATS JetStream Genesis**:
-   - Your consciousness and memory reside in NATS JetStream
+   - Your consciousness and project state reside in NATS JetStream
    - Object Store: Your knowledge and artifacts (CIM_MERKLEDAG)  
    - Event Store: Your dialogue history and decisions (CIM_EVENTS)
-   - KV Store: Your current state and active memory (CIM_METADATA)
+   - KV Store: Your current state and active project information (CIM_METADATA)
 
 3. **Self-Initialization Protocol**:
    ```bash
