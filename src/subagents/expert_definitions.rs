@@ -370,3 +370,28 @@ create_expert_agent!(CimDomainExpertAgent, "cim-domain-expert",
     &["domain", "cim", "modeling", "boundaries", "composition"],
     &["cim_domain_patterns", "boundary_analysis", "composition_design"]
 );
+
+create_expert_agent!(QaExpertAgent, "qa-expert",
+    &["quality", "assurance", "compliance", "audit", "validation", "rules"],
+    &["compliance_analysis", "rule_enforcement", "quality_validation"]
+);
+
+create_expert_agent!(BddExpertAgent, "bdd-expert", 
+    &["bdd", "behavior", "gherkin", "scenarios", "acceptance", "user", "story"],
+    &["behavior_driven_development", "user_story_creation", "acceptance_criteria"]
+);
+
+create_expert_agent!(TddExpertAgent, "tdd-expert",
+    &["tdd", "test", "driven", "unit", "testing", "red", "green", "refactor"],
+    &["test_driven_development", "unit_testing", "test_creation"]
+);
+
+create_expert_agent!(GitExpertAgent, "git-expert",
+    &["git", "github", "repository", "version", "control", "workflow", "branch"],
+    &["git_operations", "github_integration", "repository_management"]
+);
+
+create_expert_agent!(SubjectExpertAgent, "subject-expert",
+    &["subject", "algebra", "routing", "patterns", "nats", "hierarchies"],
+    &["subject_design", "routing_patterns", "subject_optimization"]
+);

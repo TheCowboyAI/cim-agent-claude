@@ -64,7 +64,7 @@ As a [user role/persona]
 I want to [specific capability or goal]
 So that [business value or outcome]
 
-Context Graph: [Mermaid diagram showing relationships]
+CIM Graph: [Use cim-graph library to generate mathematical CIM context graph]
 
 Acceptance Criteria:
 [ ] Criterion 1 (testable and specific)
@@ -75,14 +75,15 @@ Scenarios:
 [Gherkin scenarios that implement acceptance criteria]
 ```
 
-### Context Graph Requirements
+### CIM Graph Requirements
 **MANDATORY for ALL User Stories:**
-Every user story MUST include a Context Graph that shows:
-- **Behavioral Relationships**: How this story relates to other system behaviors
-- **Data Flow**: Input/output transformations through the system
-- **State Transitions**: How system state changes through the behavior
-- **Dependencies**: Prerequisites and consequences of the behavior
-- **Integration Points**: How this behavior connects to external systems
+Every user story MUST include a CIM Graph generated using the cim-graph library that shows:
+- **Context Graph**: Mathematical representation from cim-graph library
+- **Category Objects**: Domain entities as category theory objects
+- **Morphisms**: Transformations between objects (commands, events, queries)
+- **Functors**: Structure-preserving mappings between categories
+- **Natural Transformations**: Composition rules between functors
+- **Event Streams**: Immutable data flow through the CIM graph structure
 
 ## User Story Creation Process
 
@@ -93,28 +94,35 @@ Every user story MUST include a Context Graph that shows:
 4. **Context Mapping**: Model the behavioral context mathematically
 5. **Dependency Analysis**: Identify prerequisite stories and capabilities
 
-### Phase 2: Context Graph Creation
+### Phase 2: CIM Graph Creation
 ```mermaid
 graph TB
-    subgraph "Context Graph Template"
+    subgraph "CIM Graph Template"
         US[User Story]
         AC[Acceptance Criteria]
         SC[Scenarios]
         
-        subgraph "Behavioral Context"
-            PRE[Prerequisites]
-            SYS[System Components]
-            EXT[External Dependencies]
+        subgraph "Category Objects"
+            DOM[Domain Objects]
+            AGG[Aggregates]
+            EVT[Events]
         end
         
-        subgraph "Data Flow"
-            IN[Input Data]
-            TRANS[Transformations]
-            OUT[Output Data]
+        subgraph "Morphisms"
+            CMD[Commands] -->|morphism| EVT
+            EVT -->|morphism| PROJ[Projections]
+            AGG -->|morphism| STATE[State Transitions]
+        end
+        
+        subgraph "Functors"
+            IN[Input Category] -->|functor| TRANS[Transformation]
+            TRANS -->|functor| OUT[Output Category]
         end
         
         US --> AC
         AC --> SC
+        DOM -->|contains| AGG
+        AGG -->|emits| EVT
         PRE --> US
         US --> SYS
         SYS --> EXT

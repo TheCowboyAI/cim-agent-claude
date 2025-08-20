@@ -7,6 +7,8 @@ use std::time::Duration;
 use serde_json::json;
 use tempfile::TempDir;
 use std::fs;
+use uuid::Uuid;
+use chrono::Utc;
 
 mod common;
 use common::{TestNatsServer, test_id, test_cim_config};
@@ -29,17 +31,31 @@ async fn test_story_4_1_update_claude_configuration() {
     });
     
     // When: Configuration update is requested
+    let correlation_id = uuid::Uuid::new_v4().to_string();
     let config_update = json!({
+        "event_id": uuid::Uuid::new_v4().to_string(),
         "event_type": "update_claude_config",
-        "config_id": "claude_main",
-        "changes": {
-            "model": "claude-3-opus-20240229",
-            "max_tokens": 2048,
-            "temperature": 0.5
+        "aggregate_id": "claude_main",
+        "correlation_id": correlation_id,
+        "causation_id": uuid::Uuid::new_v4().to_string(),
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+        "domain": "configuration",
+        "data": {
+            "config_id": "claude_main",
+            "changes": {
+                "model": "claude-3-opus-20240229",
+                "max_tokens": 2048,
+                "temperature": 0.5
+            },
+            "reason": "Switch to Opus model for better reasoning",
+            "updated_by": "admin"
         },
-        "reason": "Switch to Opus model for better reasoning",
-        "updated_by": "admin",
-        "test_id": test_id
+        "metadata": {
+            "source": "test",
+            "version": "1.0",
+            "cim_event": true,
+            "test_id": test_id
+        }
     });
     
     nats.client

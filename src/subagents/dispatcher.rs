@@ -151,7 +151,7 @@ impl SubagentDispatcher {
                 // Create failed dispatch result
                 Ok(DispatchResult {
                     query_id: query_id.clone(),
-                    primary_response: self.create_error_response(&query, &e),
+                    primary_response: self.build_error_response(&query, &e),
                     secondary_responses: Vec::new(),
                     routing_decision,
                     execution_time: start_time.elapsed(),
@@ -392,8 +392,8 @@ impl SubagentDispatcher {
         all_recommendations.into_iter().take(5).collect() // Limit to top 5
     }
 
-    /// Create an error response when agent execution fails
-    fn create_error_response(&self, query: &SubagentQuery, error: &SubagentError) -> SubagentResponse {
+    /// Build an error response when agent execution fails
+    fn build_error_response(&self, query: &SubagentQuery, error: &SubagentError) -> SubagentResponse {
         SubagentResponse {
             query_id: query.id.clone(),
             subagent_id: "system".to_string(),

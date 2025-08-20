@@ -158,7 +158,7 @@ impl SubagentRegistry {
         }
 
         // Update capabilities index
-        self.update_capabilities_index(&agent_id).await?;
+        self.refresh_capabilities_index(&agent_id).await?;
 
         Ok(agent_id)
     }
@@ -269,8 +269,8 @@ impl SubagentRegistry {
         capabilities
     }
 
-    /// Update capabilities index for quick lookup
-    async fn update_capabilities_index(&self, agent_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    /// Refresh capabilities index for quick lookup
+    async fn refresh_capabilities_index(&self, agent_id: &str) -> Result<(), Box<dyn std::error::Error>> {
         let agent_info = {
             let agent_info_lock = self.agent_info.read().await;
             agent_info_lock.get(agent_id).cloned()
@@ -358,7 +358,7 @@ impl SubagentRegistry {
             agent_info_lock.insert(agent_id.clone(), agent_info);
         }
 
-        self.update_capabilities_index(&agent_id).await?;
+        self.refresh_capabilities_index(&agent_id).await?;
 
         Ok(())
     }

@@ -312,7 +312,7 @@ impl SageOrchestrator {
         info!("SAGE publishing Organization as CIM owner: {}", org_info.name);
 
         // Step 1: Create Organization entity with components
-        let organization_entity = self.create_organization_entity(org_info).await?;
+        let organization_entity = self.build_organization_entity(org_info).await?;
         
         // Step 2: Store organization data in Object Store (merkledag) 
         let organization_cid = self.store_organization_object(&organization_entity).await?;
@@ -494,8 +494,35 @@ impl SageOrchestrator {
         Ok(())
     }
 
-    /// SAGE Core Operation: Create organization entity
-    async fn create_organization_entity(&self, org_info: OrganizationInfo) -> Result<OrganizationEntity, SageError> {
+    /// Create properly structured CIM event with mandatory correlation/causation IDs
+    fn create_cim_event(
+        &self,
+        event_type: &str,
+        domain: &str,
+        aggregate_id: &str,
+        correlation_id: String,
+        causation_id: Option<String>,
+        data: serde_json::Value,
+    ) -> serde_json::Value {
+        serde_json::json!({
+            "event_id": uuid::Uuid::new_v4().to_string(),
+            "event_type": event_type,
+            "aggregate_id": aggregate_id,
+            "correlation_id": correlation_id,
+            "causation_id": causation_id,
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+            "domain": domain,
+            "data": data,
+            "metadata": {
+                "source": "sage",
+                "version": "1.0",
+                "cim_event": true
+            }
+        })
+    }
+
+    /// SAGE Core Operation: Build organization entity from information
+    async fn build_organization_entity(&self, org_info: OrganizationInfo) -> Result<OrganizationEntity, SageError> {
         info!("SAGE creating organization entity for: {}", org_info.name);
 
         let entity_id = format!("org_{}", uuid::Uuid::new_v4());
@@ -577,26 +604,26 @@ impl SageOrchestrator {
     async fn publish_organization_event(&self, cid: &OrganizationCID, entity: &OrganizationEntity) -> Result<String, SageError> {
         info!("SAGE publishing OrganizationCreated event for CID: {}", cid.cid);
 
-        // Create event with object CID as payload reference
-        let event_id = uuid::Uuid::new_v4().to_string();
-        let event = serde_json::json!({
-            "event_id": event_id,
-            "event_type": "OrganizationCreated",
-            "object_cid": cid.cid,
-            "entity_id": entity.id,
-            "correlation_id": uuid::Uuid::new_v4().to_string(),
-            "causation_id": null,
-            "timestamp": chrono::Utc::now().to_rfc3339(),
-            "domain": "organization",
-            "metadata": {
-                "created_by": "sage",
+        // Create properly structured CIM event with mandatory correlation/causation
+        let correlation_id = uuid::Uuid::new_v4().to_string();
+        let causation_id = uuid::Uuid::new_v4().to_string(); // SAGE self-initiated action
+        let event = self.create_cim_event(
+            "OrganizationCreated",
+            "organization",
+            &entity.id,
+            correlation_id.clone(),
+            Some(causation_id.clone()),
+            serde_json::json!({
+                "object_cid": cid.cid,
+                "entity_id": entity.id,
                 "organization_name": entity.components.iter()
                     .find(|c| c.name == "basic_info")
                     .and_then(|c| c.data.get("name"))
                     .and_then(|n| n.as_str())
-                    .unwrap_or("unknown")
-            }
-        });
+                    .unwrap_or("unknown"),
+                "created_by": "sage"
+            })
+        );
 
         // Get NATS connection
         let nats_connection = self.establish_nats_connection().await?;
@@ -615,7 +642,7 @@ impl SageOrchestrator {
             .map_err(|e| SageError::OrganizationCreationFailed(format!("Event acknowledgment failed: {}", e)))?;
 
         // Update KV Store with current organization domain
-        self.update_current_organization_kv(&nats_connection, cid).await?;
+        self.persist_current_organization_state(&nats_connection, cid).await?;
 
         info!("SAGE successfully published OrganizationCreated event: {} (Stream: {}, Sequence: {})", 
               event_id, _ack_info.stream, _ack_info.sequence);
@@ -1406,7 +1433,7 @@ impl SageOrchestrator {
     }
 
     /// Update current organization domain in KV Store
-    async fn update_current_organization_kv(&self, connection: &NatsConnection, cid: &OrganizationCID) -> Result<(), SageError> {
+    async fn persist_current_organization_state(&self, connection: &NatsConnection, cid: &OrganizationCID) -> Result<(), SageError> {
         info!("SAGE updating current organization domain for CID: {}", cid.cid);
 
         let kv_bucket = "CIM_METADATA";
@@ -1424,14 +1451,14 @@ impl SageOrchestrator {
             .map_err(|e| SageError::OrganizationCreationFailed(format!("Failed to set current org timestamp: {}", e)))?;
 
         // Update MRU (Most Recently Used) organization list
-        self.update_mru_organizations_kv(&kv_store, &cid.cid).await?;
+        self.maintain_organization_history(&kv_store, &cid.cid).await?;
 
         info!("SAGE successfully updated current organization domain");
         Ok(())
     }
 
     /// Update MRU (Most Recently Used) organizations list
-    async fn update_mru_organizations_kv(&self, kv_store: &async_nats::jetstream::kv::Store, new_cid: &str) -> Result<(), SageError> {
+    async fn maintain_organization_history(&self, kv_store: &async_nats::jetstream::kv::Store, new_cid: &str) -> Result<(), SageError> {
         info!("SAGE updating MRU organizations list with CID: {}", new_cid);
 
         // Get current MRU list

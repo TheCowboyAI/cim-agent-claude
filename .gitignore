@@ -1,3 +1,67 @@
-/target
+# Rust
+target/
 **/target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Nix
+result
+result-*
+
+# Testing
+tarpaulin-report.html
+cobertura.xml
+coverage/
+test-results/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Documentation build
+/target/doc
+/target/criterion
+
+# Examples output
+examples/output/
+
+# Local environment
+.env
+.env.local
+
+# Backup files
+*.bak
+*.backup
+
+# Log files
+*.log
+
+# NATS data (development)
+nats-data/
+jetstream/
+
+# Event store data (development)
+event-store/
+projections/
+
+# Secrets (CIM specific)
 **/secrets/
+*.key
+*.creds
+*.jwt
+
+# Claude Code session files
+.claude_session
