@@ -49,7 +49,7 @@
             lockFile = ./Cargo.lock;
             outputHashes = {
               "cim-component-0.3.0" = "sha256-5HhzcP8O/lJqzw9IyNLN4Zk1fPVRvETDYYYHH35k8Ms=";
-              "cim-domain-0.5.0" = "sha256-cz8N9ahxASorc8gMcg+zblfNtcjibtWsvHzbSKjjhaU=";
+              "cim-domain-0.5.0" = "sha256-YcokH8rCKxtUcSqVYeMoFZhR1voj7iIjpYb6h39W2D8=";
               "cim-graph-0.1.0" = "sha256-FA0o926jzbGlrFSYrl99Y1H+v0QOj/yICaagoDCLeuY=";
               "cim-ipld-0.5.0" = "sha256-Yc2cczSARqegmei6V5+C8ChE/rg89fjHai3npc+PXwk=";
               "cim-subject-0.5.0" = "sha256-Kdtyv3hhBoeA+RmQ0ZLHwhWn/rfC0wBB+A5iO3ONEHo=";
@@ -81,7 +81,7 @@
             lockFile = ./Cargo.lock;
             outputHashes = {
               "cim-component-0.3.0" = "sha256-5HhzcP8O/lJqzw9IyNLN4Zk1fPVRvETDYYYHH35k8Ms=";
-              "cim-domain-0.5.0" = "sha256-cz8N9ahxASorc8gMcg+zblfNtcjibtWsvHzbSKjjhaU=";
+              "cim-domain-0.5.0" = "sha256-YcokH8rCKxtUcSqVYeMoFZhR1voj7iIjpYb6h39W2D8=";
               "cim-graph-0.1.0" = "sha256-FA0o926jzbGlrFSYrl99Y1H+v0QOj/yICaagoDCLeuY=";
               "cim-ipld-0.5.0" = "sha256-Yc2cczSARqegmei6V5+C8ChE/rg89fjHai3npc+PXwk=";
               "cim-subject-0.5.0" = "sha256-Kdtyv3hhBoeA+RmQ0ZLHwhWn/rfC0wBB+A5iO3ONEHo=";
@@ -210,7 +210,7 @@ EOF
             lockFile = ./Cargo.lock;
             outputHashes = {
               "cim-component-0.3.0" = "sha256-5HhzcP8O/lJqzw9IyNLN4Zk1fPVRvETDYYYHH35k8Ms=";
-              "cim-domain-0.5.0" = "sha256-cz8N9ahxASorc8gMcg+zblfNtcjibtWsvHzbSKjjhaU=";
+              "cim-domain-0.5.0" = "sha256-YcokH8rCKxtUcSqVYeMoFZhR1voj7iIjpYb6h39W2D8=";
               "cim-graph-0.1.0" = "sha256-FA0o926jzbGlrFSYrl99Y1H+v0QOj/yICaagoDCLeuY=";
               "cim-ipld-0.5.0" = "sha256-Yc2cczSARqegmei6V5+C8ChE/rg89fjHai3npc+PXwk=";
               "cim-subject-0.5.0" = "sha256-Kdtyv3hhBoeA+RmQ0ZLHwhWn/rfC0wBB+A5iO3ONEHo=";
