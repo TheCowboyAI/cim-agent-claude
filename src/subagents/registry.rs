@@ -170,7 +170,7 @@ impl SubagentRegistry {
         // Extract YAML frontmatter
         let mut in_frontmatter = false;
         let mut frontmatter_lines = Vec::new();
-        let mut description_lines = Vec::new();
+        let _description_lines: Vec<&str> = Vec::new();
         
         for line in lines {
             if line.trim() == "---" {

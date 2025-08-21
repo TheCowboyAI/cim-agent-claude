@@ -11,7 +11,7 @@
 
 use super::{SubagentQuery, SubagentResponse, SubagentError, Subagent};
 use super::registry::SubagentRegistry;
-use super::router::{SubagentRouter, RouteDecision, ExecutionStrategy};
+use super::router::{SubagentRouter, SubjectResolution, ResolutionStrategy};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -25,7 +25,7 @@ pub struct DispatchResult {
     pub query_id: String,
     pub primary_response: SubagentResponse,
     pub secondary_responses: Vec<SubagentResponse>,
-    pub routing_decision: RouteDecision,
+    pub routing_decision: SubjectResolution,
     pub execution_time: Duration,
     pub status: DispatchStatus,
     pub aggregated_confidence: f64,
@@ -76,7 +76,7 @@ pub struct SubagentDispatcher {
 #[derive(Debug, Clone)]
 struct QueryExecution {
     query: SubagentQuery,
-    routing_decision: RouteDecision,
+    routing_decision: SubjectResolution,
     started_at: Instant,
     status: DispatchStatus,
     responses: Vec<SubagentResponse>,
@@ -105,7 +105,7 @@ impl SubagentDispatcher {
         info!("Dispatching query: {} ({})", query.query_text.chars().take(50).collect::<String>(), query_id);
 
         // Step 1: Route the query to determine execution strategy
-        let routing_decision = self.router.route_query(&query).await?;
+        let routing_decision = self.router.resolve_query(&query).await?;
         debug!("Routing decision: {:?}", routing_decision);
 
         // Step 2: Track query execution
@@ -121,15 +121,21 @@ impl SubagentDispatcher {
         }
 
         // Step 3: Execute based on routing strategy
-        let result = match routing_decision.execution_strategy {
-            ExecutionStrategy::Sequential => {
+        let result = match routing_decision.resolution_strategy {
+            ResolutionStrategy::DirectSubject => {
                 self.execute_sequential(&query, &routing_decision).await
             },
-            ExecutionStrategy::Parallel => {
+            ResolutionStrategy::Compositional => {
                 self.execute_parallel(&query, &routing_decision).await
             },
-            ExecutionStrategy::Adaptive => {
+            ResolutionStrategy::Hierarchical => {
+                self.execute_sequential(&query, &routing_decision).await
+            },
+            ResolutionStrategy::Orchestrated => {
                 self.execute_adaptive(&query, &routing_decision).await
+            },
+            ResolutionStrategy::Collaborative => {
+                self.execute_parallel(&query, &routing_decision).await
             },
         };
 
@@ -163,10 +169,33 @@ impl SubagentDispatcher {
         }
     }
 
+    /// Convert NATS subject to agent name 
+    fn subject_to_agent_name(&self, subject: &str) -> String {
+        // Extract agent name from subject pattern like "cim.architecture.cmd.>"
+        // Map common subjects to agent names
+        if subject.contains("architecture") {
+            "cim-expert".to_string()
+        } else if subject.contains("domain") {
+            "ddd-expert".to_string()
+        } else if subject.contains("nats") {
+            "nats-expert".to_string()
+        } else if subject.contains("nix") {
+            "nix-expert".to_string()
+        } else if subject.contains("network") {
+            "network-expert".to_string()
+        } else if subject.contains("sage") {
+            "sage".to_string()
+        } else {
+            // Default to sage for unknown subjects
+            "sage".to_string()
+        }
+    }
+
     /// Execute query with a single agent
-    async fn execute_single_agent(&self, query: &SubagentQuery, decision: &RouteDecision) -> Result<DispatchResult, SubagentError> {
-        let agent = self.registry.get_agent(&decision.primary_agent).await
-            .ok_or_else(|| SubagentError::NotFound(format!("Agent '{}' not found", decision.primary_agent)))?;
+    async fn execute_single_agent(&self, query: &SubagentQuery, decision: &SubjectResolution) -> Result<DispatchResult, SubagentError> {
+        let primary_agent_name = self.subject_to_agent_name(&decision.primary_subject);
+        let agent = self.registry.get_agent(&primary_agent_name).await
+            .ok_or_else(|| SubagentError::NotFound(format!("Agent '{}' not found", primary_agent_name)))?;
 
         let response = self.execute_with_timeout(agent, query.clone()).await?;
 
@@ -177,19 +206,19 @@ impl SubagentDispatcher {
             routing_decision: decision.clone(),
             execution_time: Duration::from_secs(0), // Will be set by caller
             status: DispatchStatus::Success,
-            aggregated_confidence: decision.confidence_score,
+            aggregated_confidence: decision.algebraic_confidence,
             next_recommendations: Vec::new(),
         })
     }
 
     /// Execute query with multiple agents sequentially
-    async fn execute_sequential(&self, query: &SubagentQuery, decision: &RouteDecision) -> Result<DispatchResult, SubagentError> {
+    async fn execute_sequential(&self, query: &SubagentQuery, decision: &SubjectResolution) -> Result<DispatchResult, SubagentError> {
         let mut responses = Vec::new();
         let mut current_query = query.clone();
 
         // Execute primary agent first
-        let primary_agent = self.registry.get_agent(&decision.primary_agent).await
-            .ok_or_else(|| SubagentError::NotFound(format!("Agent '{}' not found", decision.primary_agent)))?;
+        let primary_agent = self.registry.get_agent(&self.subject_to_agent_name(&decision.primary_subject)).await
+            .ok_or_else(|| SubagentError::NotFound(format!("Agent '{}' not found", self.subject_to_agent_name(&decision.primary_subject))))?;
         
         let primary_response = self.execute_with_timeout(primary_agent, current_query.clone()).await?;
         
@@ -199,7 +228,7 @@ impl SubagentDispatcher {
         );
 
         // Execute secondary agents
-        for secondary_agent_id in &decision.secondary_agents {
+        for secondary_agent_id in &decision.secondary_subjects.iter().map(|s| self.subject_to_agent_name(s)).collect::<Vec<_>>() {
             if let Some(agent) = self.registry.get_agent(secondary_agent_id).await {
                 match self.execute_with_timeout(agent, current_query.clone()).await {
                     Ok(response) => {
@@ -232,12 +261,12 @@ impl SubagentDispatcher {
     }
 
     /// Execute query with multiple agents in parallel
-    async fn execute_parallel(&self, query: &SubagentQuery, decision: &RouteDecision) -> Result<DispatchResult, SubagentError> {
+    async fn execute_parallel(&self, query: &SubagentQuery, decision: &SubjectResolution) -> Result<DispatchResult, SubagentError> {
         let mut handles = Vec::new();
 
         // Execute primary agent
-        let primary_agent = self.registry.get_agent(&decision.primary_agent).await
-            .ok_or_else(|| SubagentError::NotFound(format!("Agent '{}' not found", decision.primary_agent)))?;
+        let primary_agent = self.registry.get_agent(&self.subject_to_agent_name(&decision.primary_subject)).await
+            .ok_or_else(|| SubagentError::NotFound(format!("Agent '{}' not found", self.subject_to_agent_name(&decision.primary_subject))))?;
         
         let primary_query = query.clone();
         let primary_handle = tokio::spawn(async move {
@@ -245,11 +274,12 @@ impl SubagentDispatcher {
         });
         
         // Execute secondary agents in parallel (limited by config)
-        let secondary_agents = decision.secondary_agents.iter()
+        let secondary_agent_names: Vec<String> = decision.secondary_subjects.iter()
+            .map(|s| self.subject_to_agent_name(s))
             .take(self.config.max_parallel_agents.saturating_sub(1)) // Reserve one slot for primary
-            .collect::<Vec<_>>();
+            .collect();
 
-        for secondary_agent_id in secondary_agents {
+        for secondary_agent_id in &secondary_agent_names {
             if let Some(agent) = self.registry.get_agent(secondary_agent_id).await {
                 let agent_clone = agent.clone();
                 let query_clone = query.clone();
@@ -292,7 +322,7 @@ impl SubagentDispatcher {
     }
 
     /// Execute orchestrated query (via SAGE)
-    async fn execute_adaptive(&self, query: &SubagentQuery, decision: &RouteDecision) -> Result<DispatchResult, SubagentError> {
+    async fn execute_adaptive(&self, query: &SubagentQuery, decision: &SubjectResolution) -> Result<DispatchResult, SubagentError> {
         // For orchestrated queries, we route through SAGE which manages the workflow
         let sage_agent = self.registry.get_agent("sage").await
             .ok_or_else(|| SubagentError::NotFound("SAGE orchestrator not available".to_string()))?;
@@ -306,13 +336,13 @@ impl SubagentDispatcher {
             routing_decision: decision.clone(),
             execution_time: Duration::from_secs(0),
             status: DispatchStatus::Success,
-            aggregated_confidence: decision.confidence_score,
+            aggregated_confidence: decision.algebraic_confidence,
             next_recommendations: Vec::new(),
         })
     }
 
     /// Execute collaborative query (multiple agents working together)
-    async fn execute_collaborative(&self, query: &SubagentQuery, decision: &RouteDecision) -> Result<DispatchResult, SubagentError> {
+    async fn execute_collaborative(&self, query: &SubagentQuery, decision: &SubjectResolution) -> Result<DispatchResult, SubagentError> {
         // For collaborative queries, we use event-storming-expert to facilitate
         let facilitator = self.registry.get_agent("event-storming-expert").await
             .ok_or_else(|| SubagentError::NotFound("Event storming facilitator not available".to_string()))?;
@@ -326,7 +356,7 @@ impl SubagentDispatcher {
         collaborative_query.metadata.insert(
             "participating_agents".to_string(),
             serde_json::Value::Array(
-                decision.secondary_agents.iter()
+                decision.secondary_subjects.iter().map(|s| self.subject_to_agent_name(s)).collect::<Vec<_>>().iter()
                     .map(|id| serde_json::Value::String(id.clone()))
                     .collect()
             )
@@ -341,7 +371,7 @@ impl SubagentDispatcher {
             routing_decision: decision.clone(),
             execution_time: Duration::from_secs(0),
             status: DispatchStatus::Success,
-            aggregated_confidence: decision.confidence_score,
+            aggregated_confidence: decision.algebraic_confidence,
             next_recommendations: Vec::new(),
         })
     }

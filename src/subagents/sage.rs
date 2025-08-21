@@ -21,9 +21,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use chrono::{DateTime, Utc};
-use tracing::{info, debug, warn, error};
+use tracing::{info, debug, warn};
 use sha2::{Sha256, Digest};
-use futures::StreamExt;
 
 // CIM Domain foundations  
 use cim_domain::{
@@ -392,17 +391,18 @@ impl SageOrchestrator {
         let config = async_nats::jetstream::object_store::Config {
             bucket: bucket_name.to_string(),
             description: Some("CIM merkledag(bits) - Content-addressed immutable object storage".to_string()),
-            max_bucket_size: Some(1_000_000_000), // 1GB max
+            max_bytes: 1_000_000_000, // 1GB max
             storage: async_nats::jetstream::stream::StorageType::File,
-            replicas: 1,
+            num_replicas: 1,
             ..Default::default()
         };
         
         // Create or get existing Object Store
-        let _object_store = connection.jetstream.create_object_store(config).await
-            .or_else(|_| connection.jetstream.get_object_store(bucket_name))
-            .await
-            .map_err(|e| SageError::ObjectStoreInitFailed(format!("Failed to initialize Object Store {}: {}", bucket_name, e)))?;
+        let _object_store = match connection.jetstream.create_object_store(config).await {
+            Ok(store) => store,
+            Err(_) => connection.jetstream.get_object_store(bucket_name).await
+                .map_err(|e| SageError::ObjectStoreInitFailed(format!("Failed to initialize Object Store {}: {}", bucket_name, e)))?
+        };
         
         let store_state = ObjectStoreState {
             bucket_name: bucket_name.to_string(),
@@ -427,18 +427,19 @@ impl SageOrchestrator {
             subjects: vec!["cim.events.>".to_string()], // Subject algebra for CIM events
             retention: async_nats::jetstream::stream::RetentionPolicy::Limits,
             storage: async_nats::jetstream::stream::StorageType::File,
-            max_messages: Some(1_000_000), // 1M events max
-            max_bytes: Some(10_000_000_000), // 10GB max
+            max_messages: 1_000_000, // 1M events max
+            max_bytes: 10_000_000_000, // 10GB max
             discard: async_nats::jetstream::stream::DiscardPolicy::Old,
-            replicas: 1,
+            num_replicas: 1,
             ..Default::default()
         };
         
         // Create or get existing Event Store stream
-        let _stream = connection.jetstream.create_stream(config).await
-            .or_else(|_| connection.jetstream.get_stream(stream_name))
-            .await
-            .map_err(|e| SageError::EventStoreInitFailed(format!("Failed to initialize Event Store {}: {}", stream_name, e)))?;
+        let _stream = match connection.jetstream.create_stream(config).await {
+            Ok(stream) => stream,
+            Err(_) => connection.jetstream.get_stream(stream_name).await
+                .map_err(|e| SageError::EventStoreInitFailed(format!("Failed to initialize Event Store {}: {}", stream_name, e)))?
+        };
         
         let store_state = EventStoreState {
             stream_name: stream_name.to_string(),
@@ -459,19 +460,20 @@ impl SageOrchestrator {
         // Create KV Store configuration for CIM metadata
         let config = async_nats::jetstream::kv::Config {
             bucket: kv_bucket.to_string(),
-            description: Some("CIM Metadata KV Store - Organization domain, MRU/LRU lists, and indexing".to_string()),
+            description: "CIM Metadata KV Store - Organization domain, MRU/LRU lists, and indexing".to_string(),
             max_value_size: 1024 * 1024, // 1MB max value size
             history: 10, // Keep 10 versions of each key
             storage: async_nats::jetstream::stream::StorageType::File,
-            replicas: 1,
+            num_replicas: 1,
             ..Default::default()
         };
         
         // Create or get existing KV Store
-        let _kv_store = connection.jetstream.create_key_value(config).await
-            .or_else(|_| connection.jetstream.get_key_value(kv_bucket))
-            .await
-            .map_err(|e| SageError::KvStoreInitFailed(format!("Failed to initialize KV Store {}: {}", kv_bucket, e)))?;
+        let _kv_store = match connection.jetstream.create_key_value(config).await {
+            Ok(kv) => kv,
+            Err(_) => connection.jetstream.get_key_value(kv_bucket).await
+                .map_err(|e| SageError::KvStoreInitFailed(format!("Failed to initialize KV Store {}: {}", kv_bucket, e)))?
+        };
 
         let kv_state = KvStoreState {
             bucket_name: kv_bucket.to_string(),
@@ -557,7 +559,7 @@ impl SageOrchestrator {
             OrganizationComponent {
                 name: "metadata".to_string(),
                 component_type: "OrganizationMetadata".to_string(),
-                data: serde_json::Value::Object(org_info.metadata.clone()),
+                data: serde_json::Value::Object(org_info.metadata.clone().into_iter().collect()),
             },
         ];
 
@@ -592,7 +594,12 @@ impl SageOrchestrator {
             .map_err(|e| SageError::OrganizationCreationFailed(format!("Failed to get Object Store {}: {}", bucket_name, e)))?;
 
         // Use CID as object name for content-addressed storage
-        let _object_info = object_store.put(&cid, entity_bytes.into()).await
+        let mut data_cursor = std::io::Cursor::new(entity_bytes);
+        let metadata = async_nats::jetstream::object_store::ObjectMetadata {
+            name: cid.clone(),
+            ..Default::default()
+        };
+        let _object_info = object_store.put(metadata, &mut data_cursor).await
             .map_err(|e| SageError::OrganizationCreationFailed(format!("Failed to store object with CID {}: {}", cid, e)))?;
 
         // Store organization metadata in KV Store
@@ -653,8 +660,8 @@ impl SageOrchestrator {
         self.persist_current_organization_state(&nats_connection, cid).await?;
 
         info!("SAGE successfully published OrganizationCreated event: {} (Stream: {}, Sequence: {})", 
-              event.event_id, _ack_info.stream, _ack_info.sequence);
-        Ok(event.event_id.clone())
+              event["event_id"], _ack_info.stream, _ack_info.sequence);
+        Ok(event["event_id"].as_str().unwrap_or("unknown").to_string())
     }
 
     /// SAGE Core Operation: Validate organization establishment
@@ -1413,29 +1420,31 @@ impl SageOrchestrator {
             .find(|c| c.name == "basic_info")
             .and_then(|c| c.data.get("name"))
             .and_then(|n| n.as_str())
-            .unwrap_or("unknown");
+            .unwrap_or("unknown")
+            .to_string();
 
         let org_domain = entity.components.iter()
             .find(|c| c.name == "basic_info")
             .and_then(|c| c.data.get("domain"))
             .and_then(|d| d.as_str())
-            .unwrap_or("unknown");
+            .unwrap_or("unknown")
+            .to_string();
 
         // Store key organization metadata
-        kv_store.put(&format!("organization.{}.cid", entity.id), cid.as_bytes().into()).await
+        kv_store.put(&format!("organization.{}.cid", entity.id), cid.to_string().into_bytes().into()).await
             .map_err(|e| SageError::OrganizationCreationFailed(format!("Failed to store org CID: {}", e)))?;
 
-        kv_store.put(&format!("organization.{}.name", entity.id), org_name.as_bytes().into()).await
+        kv_store.put(&format!("organization.{}.name", entity.id), org_name.into_bytes().into()).await
             .map_err(|e| SageError::OrganizationCreationFailed(format!("Failed to store org name: {}", e)))?;
 
-        kv_store.put(&format!("organization.{}.domain", entity.id), org_domain.as_bytes().into()).await
+        kv_store.put(&format!("organization.{}.domain", entity.id), org_domain.into_bytes().into()).await
             .map_err(|e| SageError::OrganizationCreationFailed(format!("Failed to store org domain: {}", e)))?;
 
-        kv_store.put(&format!("organization.{}.created_at", entity.id), entity.created_at.to_rfc3339().as_bytes().into()).await
+        kv_store.put(&format!("organization.{}.created_at", entity.id), entity.created_at.to_rfc3339().into_bytes().into()).await
             .map_err(|e| SageError::OrganizationCreationFailed(format!("Failed to store creation timestamp: {}", e)))?;
 
         // Store reverse lookup: CID -> entity_id
-        kv_store.put(&format!("cid.{}.entity_id", cid), entity.id.as_bytes().into()).await
+        kv_store.put(&format!("cid.{}.entity_id", cid), entity.id.as_bytes().to_vec().into()).await
             .map_err(|e| SageError::OrganizationCreationFailed(format!("Failed to store CID lookup: {}", e)))?;
 
         info!("SAGE successfully stored organization metadata in KV Store");
@@ -1451,13 +1460,13 @@ impl SageOrchestrator {
             .map_err(|e| SageError::OrganizationCreationFailed(format!("Failed to get KV Store {}: {}", kv_bucket, e)))?;
 
         // Set current organization
-        kv_store.put("current.organization.cid", cid.cid.as_bytes().into()).await
+        kv_store.put("current.organization.cid", cid.cid.as_bytes().to_vec().into()).await
             .map_err(|e| SageError::OrganizationCreationFailed(format!("Failed to set current org CID: {}", e)))?;
 
-        kv_store.put("current.organization.entity_id", cid.entity_id.as_bytes().into()).await
+        kv_store.put("current.organization.entity_id", cid.entity_id.as_bytes().to_vec().into()).await
             .map_err(|e| SageError::OrganizationCreationFailed(format!("Failed to set current entity ID: {}", e)))?;
 
-        kv_store.put("current.organization.set_at", cid.stored_at.to_rfc3339().as_bytes().into()).await
+        kv_store.put("current.organization.set_at", cid.stored_at.to_rfc3339().into_bytes().into()).await
             .map_err(|e| SageError::OrganizationCreationFailed(format!("Failed to set current org timestamp: {}", e)))?;
 
         // Update MRU (Most Recently Used) organization list
@@ -1473,12 +1482,11 @@ impl SageOrchestrator {
 
         // Get current MRU list
         let current_mru = match kv_store.get("mru.organizations").await {
-            Ok(entry) => {
-                let mru_bytes = entry.value;
+            Ok(Some(mru_bytes)) => {
                 String::from_utf8(mru_bytes.to_vec())
                     .unwrap_or_default()
             }
-            Err(_) => String::new() // First organization
+            Ok(None) | Err(_) => String::new() // First organization or error
         };
 
         // Parse existing MRU list (comma-separated CIDs)
@@ -1500,12 +1508,11 @@ impl SageOrchestrator {
         }
 
         // Store updated MRU list
-        let updated_mru = mru_list.join(",");
-        kv_store.put("mru.organizations", updated_mru.as_bytes().into()).await
+        kv_store.put("mru.organizations", mru_list.join(",").into_bytes().into()).await
             .map_err(|e| SageError::OrganizationCreationFailed(format!("Failed to update MRU organizations: {}", e)))?;
 
         // Also store organization count
-        kv_store.put("stats.organization_count", mru_list.len().to_string().as_bytes().into()).await
+        kv_store.put("stats.organization_count", mru_list.len().to_string().into_bytes().into()).await
             .map_err(|e| SageError::OrganizationCreationFailed(format!("Failed to update org count: {}", e)))?;
 
         info!("SAGE successfully updated MRU organizations list ({} total)", mru_list.len());
@@ -1526,10 +1533,11 @@ impl SageOrchestrator {
             .map_err(|e| SageError::ObjectStoreInitFailed(format!("Failed to get object {}: {}", cid, e)))?;
 
         // Read object data
-        while let Some(chunk) = object_reader.next().await {
-            let chunk = chunk.map_err(|e| SageError::ObjectStoreInitFailed(format!("Failed to read object chunk: {}", e)))?;
-            object_data.extend_from_slice(&chunk);
-        }
+        use tokio::io::AsyncReadExt;
+        let mut buffer = Vec::new();
+        object_reader.read_to_end(&mut buffer).await
+            .map_err(|e| SageError::ObjectStoreInitFailed(format!("Failed to read object data: {}", e)))?;
+        object_data = buffer;
 
         info!("SAGE successfully retrieved object: {} bytes", object_data.len());
         Ok(object_data)
@@ -1546,28 +1554,28 @@ impl SageOrchestrator {
 
         // Get current organization CID
         let current_cid = match kv_store.get("current.organization.cid").await {
-            Ok(entry) => String::from_utf8(entry.value.to_vec())
+            Ok(Some(cid_bytes)) => String::from_utf8(cid_bytes.to_vec())
                 .map_err(|e| SageError::ObjectStoreInitFailed(format!("Invalid UTF-8 in CID: {}", e)))?,
-            Err(_) => return Ok(None) // No current organization
+            Ok(None) | Err(_) => return Ok(None) // No current organization
         };
 
         // Get entity ID
         let entity_id = match kv_store.get("current.organization.entity_id").await {
-            Ok(entry) => String::from_utf8(entry.value.to_vec())
+            Ok(Some(entity_bytes)) => String::from_utf8(entity_bytes.to_vec())
                 .map_err(|e| SageError::ObjectStoreInitFailed(format!("Invalid UTF-8 in entity ID: {}", e)))?,
-            Err(_) => return Ok(None)
+            Ok(None) | Err(_) => return Ok(None)
         };
 
         // Get stored timestamp
         let stored_at = match kv_store.get("current.organization.set_at").await {
-            Ok(entry) => {
-                let timestamp_str = String::from_utf8(entry.value.to_vec())
+            Ok(Some(timestamp_bytes)) => {
+                let timestamp_str = String::from_utf8(timestamp_bytes.to_vec())
                     .map_err(|e| SageError::ObjectStoreInitFailed(format!("Invalid UTF-8 in timestamp: {}", e)))?;
                 DateTime::parse_from_rfc3339(&timestamp_str)
                     .map_err(|e| SageError::ObjectStoreInitFailed(format!("Invalid timestamp format: {}", e)))?
                     .with_timezone(&Utc)
             }
-            Err(_) => Utc::now() // Default to now if timestamp missing
+            Ok(None) | Err(_) => Utc::now() // Default to now if timestamp missing
         };
 
         let organization_cid = OrganizationCID {
@@ -1591,8 +1599,7 @@ impl SageOrchestrator {
 
         // Get MRU list
         let mru_list = match kv_store.get("mru.organizations").await {
-            Ok(entry) => {
-                let mru_bytes = entry.value;
+            Ok(Some(mru_bytes)) => {
                 let mru_string = String::from_utf8(mru_bytes.to_vec())
                     .map_err(|e| SageError::KvStoreError(format!("Invalid UTF-8 in MRU list: {}", e)))?;
                 
@@ -1602,7 +1609,7 @@ impl SageOrchestrator {
                     mru_string.split(',').map(|s| s.trim().to_string()).collect()
                 }
             }
-            Err(_) => Vec::new() // No MRU list exists yet
+            Ok(None) | Err(_) => Vec::new() // No MRU list exists yet
         };
 
         info!("SAGE found {} MRU organizations", mru_list.len());
@@ -1662,6 +1669,10 @@ impl SageSessionId {
     
     pub fn from_string(id: String) -> Self {
         Self(id)
+    }
+    
+    pub fn as_str(&self) -> &str {
+        &self.0
     }
 }
 
@@ -1761,16 +1772,42 @@ pub enum SageEvent {
 }
 
 impl DomainEvent for SageEvent {
-    fn event_type(&self) -> String {
+    fn event_type(&self) -> &'static str {
         match self {
-            SageEvent::SessionCreated { .. } => "sage.session.created".to_string(),
-            SageEvent::QueryReceived { .. } => "sage.query.received".to_string(),
-            SageEvent::QueryAnalyzed { .. } => "sage.query.analyzed".to_string(),
-            SageEvent::RoutedToExperts { .. } => "sage.routed.to.experts".to_string(),
-            SageEvent::ExpertResponseReceived { .. } => "sage.expert.response.received".to_string(),
-            SageEvent::ResponseSynthesized { .. } => "sage.response.synthesized".to_string(),
-            SageEvent::SessionCompleted { .. } => "sage.session.completed".to_string(),
-            SageEvent::SessionFailed { .. } => "sage.session.failed".to_string(),
+            SageEvent::SessionCreated { .. } => "sage.session.created",
+            SageEvent::QueryReceived { .. } => "sage.query.received",
+            SageEvent::QueryAnalyzed { .. } => "sage.query.analyzed",
+            SageEvent::RoutedToExperts { .. } => "sage.routed.to.experts",
+            SageEvent::ExpertResponseReceived { .. } => "sage.expert.response.received",
+            SageEvent::ResponseSynthesized { .. } => "sage.response.synthesized",
+            SageEvent::SessionCompleted { .. } => "sage.session.completed",
+            SageEvent::SessionFailed { .. } => "sage.session.failed",
+        }
+    }
+
+    fn subject(&self) -> String {
+        match self {
+            SageEvent::SessionCreated { session_id, .. } => format!("cim.events.sage.{}", session_id),
+            SageEvent::QueryReceived { session_id, .. } => format!("cim.events.sage.{}", session_id),
+            SageEvent::QueryAnalyzed { session_id, .. } => format!("cim.events.sage.{}", session_id),
+            SageEvent::RoutedToExperts { session_id, .. } => format!("cim.events.sage.{}", session_id),
+            SageEvent::ExpertResponseReceived { session_id, .. } => format!("cim.events.sage.{}", session_id),
+            SageEvent::ResponseSynthesized { session_id, .. } => format!("cim.events.sage.{}", session_id),
+            SageEvent::SessionCompleted { session_id, .. } => format!("cim.events.sage.{}", session_id),
+            SageEvent::SessionFailed { session_id, .. } => format!("cim.events.sage.{}", session_id),
+        }
+    }
+
+    fn aggregate_id(&self) -> uuid::Uuid {
+        match self {
+            SageEvent::SessionCreated { session_id, .. } => uuid::Uuid::parse_str(session_id.as_str()).unwrap_or_default(),
+            SageEvent::QueryReceived { session_id, .. } => uuid::Uuid::parse_str(session_id.as_str()).unwrap_or_default(),
+            SageEvent::QueryAnalyzed { session_id, .. } => uuid::Uuid::parse_str(session_id.as_str()).unwrap_or_default(),
+            SageEvent::RoutedToExperts { session_id, .. } => uuid::Uuid::parse_str(session_id.as_str()).unwrap_or_default(),
+            SageEvent::ExpertResponseReceived { session_id, .. } => uuid::Uuid::parse_str(session_id.as_str()).unwrap_or_default(),
+            SageEvent::ResponseSynthesized { session_id, .. } => uuid::Uuid::parse_str(session_id.as_str()).unwrap_or_default(),
+            SageEvent::SessionCompleted { session_id, .. } => uuid::Uuid::parse_str(session_id.as_str()).unwrap_or_default(),
+            SageEvent::SessionFailed { session_id, .. } => uuid::Uuid::parse_str(session_id.as_str()).unwrap_or_default(),
         }
     }
 }
@@ -1810,7 +1847,13 @@ pub enum SageCommand {
 }
 
 impl Command for SageCommand {
-    // Commands in cim-domain don't require specific methods in base trait
+    type Aggregate = SageOrchestratorAggregate;
+
+    fn aggregate_id(&self) -> Option<cim_domain::EntityId<Self::Aggregate>> {
+        // For now, return None - this will need to be implemented properly
+        // based on the actual EntityId type requirements
+        None
+    }
 }
 
 /// SAGE Domain Queries

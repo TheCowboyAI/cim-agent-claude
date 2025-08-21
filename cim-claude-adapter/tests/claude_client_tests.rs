@@ -150,7 +150,7 @@ mod message_sending_success_tests {
         
         Mock::given(method("POST"))
             .and(path("/v1/messages"))
-            .and(header("authorization", "Bearer test-api-key"))
+            .and(header("x-api-key", "test-api-key"))
             .and(header("content-type", "application/json"))
             .and(header("anthropic-version", "2023-06-01"))
             .respond_with(ResponseTemplate::new(200).set_body_json(fixtures::successful_response()))
@@ -165,7 +165,10 @@ mod message_sending_success_tests {
         let result = client.send_message(request).await;
         
         // Then
-        assert!(result.is_ok(), "Message sending should succeed");
+        if result.is_err() {
+            println!("Error details: {:?}", result.err().unwrap());
+            panic!("Message sending should succeed");
+        }
         let response = result.unwrap();
         assert_eq!(response.content, "Hello! How can I help you today?");
         assert_eq!(response.model, "claude-3-5-sonnet-20241022");

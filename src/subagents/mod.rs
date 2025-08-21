@@ -16,7 +16,7 @@ pub mod expert_definitions;
 pub mod sage;
 
 pub use registry::{SubagentRegistry, SubagentInfo, SubagentCapability};
-pub use router::{SubagentRouter, SubjectResolution, ResolutionStrategy, RouteDecision, ExecutionStrategy, DomainType, DomainContext};
+pub use router::{SubagentRouter, SubjectResolution, ResolutionStrategy, DomainType, DomainContext};
 pub use dispatcher::{SubagentDispatcher, DispatchResult};
 pub use expert_definitions::*;
 
@@ -134,7 +134,7 @@ pub enum RecommendationType {
 }
 
 /// Priority levels
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub enum Priority {
     Low,
     Medium,
