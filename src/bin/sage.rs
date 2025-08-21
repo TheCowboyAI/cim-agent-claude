@@ -12,10 +12,7 @@ use serde_json;
 use uuid::Uuid;
 use chrono::Utc;
 
-mod sage_cli;
-mod claude_integration;
-mod consciousness_engine;
-mod orchestration_engine;
+// Modules defined inline below
 
 use sage_cli::SageCli;
 use consciousness_engine::ConsciousnessEngine;
