@@ -52,7 +52,7 @@
               "cim-domain-0.5.0" = "sha256-cz8N9ahxASorc8gMcg+zblfNtcjibtWsvHzbSKjjhaU=";
               "cim-graph-0.1.0" = "sha256-0uaNwhQkLbeMJa25kNPhOSbnm6akD1LHalLGX4Pr6T0=";
               "cim-ipld-0.5.0" = "sha256-Yc2cczSARqegmei6V5+C8ChE/rg89fjHai3npc+PXwk=";
-              "cim-subject-0.5.0" = "sha256-Kwxf6YJ42kA3C2kC0er7EvEVTqSixlxSSWCh9fHI5yg=";
+              "cim-subject-0.5.0" = "sha256-b3Pxh9YHlSIGNjKmINsrIH5JgmRoxcOeH+USoO562SQ=";
             };
           };
           
@@ -84,7 +84,7 @@
               "cim-domain-0.5.0" = "sha256-cz8N9ahxASorc8gMcg+zblfNtcjibtWsvHzbSKjjhaU=";
               "cim-graph-0.1.0" = "sha256-0uaNwhQkLbeMJa25kNPhOSbnm6akD1LHalLGX4Pr6T0=";
               "cim-ipld-0.5.0" = "sha256-Yc2cczSARqegmei6V5+C8ChE/rg89fjHai3npc+PXwk=";
-              "cim-subject-0.5.0" = "sha256-Kwxf6YJ42kA3C2kC0er7EvEVTqSixlxSSWCh9fHI5yg=";
+              "cim-subject-0.5.0" = "sha256-b3Pxh9YHlSIGNjKmINsrIH5JgmRoxcOeH+USoO562SQ=";
             };
           };
           
@@ -213,7 +213,7 @@ EOF
               "cim-domain-0.5.0" = "sha256-cz8N9ahxASorc8gMcg+zblfNtcjibtWsvHzbSKjjhaU=";
               "cim-graph-0.1.0" = "sha256-0uaNwhQkLbeMJa25kNPhOSbnm6akD1LHalLGX4Pr6T0=";
               "cim-ipld-0.5.0" = "sha256-Yc2cczSARqegmei6V5+C8ChE/rg89fjHai3npc+PXwk=";
-              "cim-subject-0.5.0" = "sha256-Kwxf6YJ42kA3C2kC0er7EvEVTqSixlxSSWCh9fHI5yg=";
+              "cim-subject-0.5.0" = "sha256-b3Pxh9YHlSIGNjKmINsrIH5JgmRoxcOeH+USoO562SQ=";
             };
           };
           
