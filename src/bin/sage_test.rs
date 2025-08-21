@@ -5,6 +5,7 @@
 
 use anyhow::Result;
 use async_nats::{Client, jetstream};
+use futures_util::stream::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use tokio;
@@ -86,7 +87,7 @@ impl SageTestService {
                     let response_subject = format!("sage.response.{}", request.request_id);
                     match serde_json::to_vec(&response) {
                         Ok(response_json) => {
-                            match self.nats_client.publish(&response_subject, response_json.into()).await {
+                            match self.nats_client.publish(response_subject.clone(), response_json.into()).await {
                                 Ok(_) => {
                                     info!("✅ Published response to: {}", response_subject);
                                 }

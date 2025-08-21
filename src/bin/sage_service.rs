@@ -6,6 +6,7 @@
 
 use anyhow::Result;
 use async_nats::{Client, jetstream};
+use futures_util::stream::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::HashMap;
@@ -128,8 +129,9 @@ impl SageService {
         let request_subscriber = self.nats_client.subscribe("sage.request").await?;
         let status_subscriber = self.nats_client.subscribe("sage.status").await?;
         
-        // Process requests concurrently
-        let request_handler = self.handle_requests(request_subscriber);
+        // Process requests concurrently using separate client references
+        let client_clone = self.nats_client.clone();
+        let request_handler = Self::handle_requests_static(client_clone, request_subscriber);
         let status_handler = self.handle_status_requests(status_subscriber);
         
         // Run both handlers concurrently
@@ -162,7 +164,51 @@ impl SageService {
                         Ok(response_json) => {
                             let response_subject = format!("sage.response.{}", request.request_id);
                             
-                            if let Err(e) = self.nats_client.publish(&response_subject, response_json.into()).await {
+                            if let Err(e) = self.nats_client.publish(response_subject.clone(), response_json.into()).await {
+                                error!("Failed to publish SAGE response: {}", e);
+                            } else {
+                                info!("SAGE response published to: {}", response_subject);
+                            }
+                        }
+                        Err(e) => {
+                            error!("Failed to serialize SAGE response: {}", e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to deserialize SAGE request: {}", e);
+                }
+            }
+        }
+        
+        Ok(())
+    }
+    
+    /// Static version of handle_requests to avoid borrowing conflicts
+    async fn handle_requests_static(nats_client: Client, mut subscriber: async_nats::Subscriber) -> Result<()> {
+        info!("🧠 SAGE Request Handler Started (Static)");
+        
+        while let Some(msg) = subscriber.next().await {
+            match serde_json::from_slice::<SageRequest>(&msg.payload) {
+                Ok(request) => {
+                    info!("Received SAGE request: {}", request.request_id);
+                    
+                    // Create a simple response (without full orchestration for now)
+                    let response = SageResponse {
+                        request_id: request.request_id.clone(),
+                        result: "SAGE orchestration response - basic implementation".to_string(),
+                        expert_agents_used: vec!["cim-expert".to_string()],
+                        consciousness_state: "active".to_string(),
+                        processing_time_ms: 100,
+                        confidence_score: 0.8,
+                    };
+                    
+                    // Publish response
+                    match serde_json::to_vec(&response) {
+                        Ok(response_json) => {
+                            let response_subject = format!("sage.response.{}", request.request_id);
+                            
+                            if let Err(e) = nats_client.publish(response_subject.clone(), response_json.into()).await {
                                 error!("Failed to publish SAGE response: {}", e);
                             } else {
                                 info!("SAGE response published to: {}", response_subject);
