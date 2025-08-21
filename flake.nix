@@ -92,6 +92,20 @@
           ]);
           nativeBuildInputs = commonNativeBuildInputs;
           
+          # Disable vendored OpenSSL to use system OpenSSL
+          OPENSSL_NO_VENDOR = 1;
+          
+          # GUI library paths for Wayland and X11 - CRITICAL for GUI linking
+          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath (with pkgs; [
+            wayland
+            libxkbcommon
+            vulkan-loader
+            xorg.libX11
+            xorg.libXcursor
+            xorg.libXrandr
+            xorg.libXi
+          ]);
+          
           buildAndTestSubdir = "cim-claude-gui";
           
           meta = with pkgs.lib; {
@@ -286,9 +300,33 @@ EOF
           ]);
 
           shellHook = ''
+            # CRITICAL: OpenSSL environment setup for Rust compilation
+            export OPENSSL_DIR="${pkgs.openssl.dev}"
+            export OPENSSL_LIB_DIR="${pkgs.openssl.out}/lib"
+            export OPENSSL_INCLUDE_DIR="${pkgs.openssl.dev}/include"
+            export PKG_CONFIG_PATH="${pkgs.openssl.dev}/lib/pkgconfig:$PKG_CONFIG_PATH"
+            export OPENSSL_NO_VENDOR=1
+            
+            # CRITICAL: GUI library paths for Wayland and X11 support
+            export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath (with pkgs; [
+              wayland
+              libxkbcommon
+              vulkan-loader
+              xorg.libX11
+              xorg.libXcursor
+              xorg.libXrandr
+              xorg.libXi
+            ])}"
+            
+            # Allow fallback to X11 if Wayland is not available
+            export WINIT_UNIX_BACKEND=x11
             echo "🤖 CIM Agent Claude Development Environment"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo "📦 Rust toolchain: $(rustc --version)"
+            echo "🔒 OpenSSL configuration: $OPENSSL_DIR"
+            echo "🖥️  GUI display backend: $WINIT_UNIX_BACKEND (X11 fallback enabled)"
+            echo "📚 Library path configured for Wayland/X11 support"
+            echo ""
             echo "🔧 Available packages:"
             echo "  cim-claude-adapter      - Backend service"
             echo "  cim-claude-gui          - Desktop GUI"
