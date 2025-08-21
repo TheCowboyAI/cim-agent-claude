@@ -21,9 +21,17 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use chrono::{DateTime, Utc};
-use tracing::{info, debug, warn};
+use tracing::{info, debug, warn, error};
 use sha2::{Sha256, Digest};
 use futures::StreamExt;
+
+// CIM Domain foundations  
+use cim_domain::{
+    DomainEvent, Command, Query,
+    DomainError
+};
+
+type DomainResult<T> = Result<T, DomainError>;
 
 /// SAGE - Master CIM Orchestrator
 /// 
@@ -1205,6 +1213,7 @@ pub enum SageError {
     ObjectStorageError(String),
     EventPublishError(String),
     KvStoreError(String),
+    DomainError(String),
 }
 
 impl std::fmt::Display for SageError {
@@ -1224,6 +1233,7 @@ impl std::fmt::Display for SageError {
             SageError::ObjectStorageError(msg) => write!(f, "Object storage error: {}", msg),
             SageError::EventPublishError(msg) => write!(f, "Event publish error: {}", msg),
             SageError::KvStoreError(msg) => write!(f, "KV store error: {}", msg),
+            SageError::DomainError(msg) => write!(f, "Domain error: {}", msg),
         }
     }
 }
@@ -1618,4 +1628,518 @@ pub struct OrchestrationPlan {
     pub requires_subject_algebra: bool,
     pub recommendations: Vec<super::SubagentRecommendation>,
     pub next_actions: Vec<super::NextAction>,
+}
+
+// =============================================================================
+// CIM DOMAIN CONSTRUCTS - Using cim-domain foundations
+// =============================================================================
+
+/// SAGE Orchestration Session - Core Domain Aggregate
+/// 
+/// Represents a complete CIM orchestration session with proper domain modeling
+#[derive(Debug, Clone)]
+pub struct SageOrchestratorAggregate {
+    /// Aggregate root identity
+    pub id: SageSessionId,
+    /// Current state of the orchestration
+    pub state: SageSessionState,
+    /// Version for event sourcing
+    pub version: u64,
+    /// Applied events history
+    pub applied_events: Vec<SageEvent>,
+    /// Session metadata
+    pub metadata: SageSessionMetadata,
+}
+
+/// Strong-typed ID for SAGE sessions
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct SageSessionId(String);
+
+impl SageSessionId {
+    pub fn new() -> Self {
+        Self(uuid::Uuid::new_v4().to_string())
+    }
+    
+    pub fn from_string(id: String) -> Self {
+        Self(id)
+    }
+}
+
+impl std::fmt::Display for SageSessionId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+/// Session metadata value object
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SageSessionMetadata {
+    pub user_query: String,
+    pub selected_expert: Option<String>,
+    pub session_context: HashMap<String, String>,
+    pub created_at: DateTime<Utc>,
+    pub last_updated: DateTime<Utc>,
+}
+
+/// SAGE Session State Machine
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum SageSessionState {
+    /// Initial state - session created but not started
+    Created,
+    /// Analyzing user query to determine routing strategy
+    AnalyzingQuery,
+    /// Routing to appropriate expert agents
+    RoutingToExperts,
+    /// Expert agents are processing the request
+    ProcessingWithExperts,
+    /// Synthesizing responses from multiple experts
+    SynthesizingResponse,
+    /// Session completed successfully
+    Completed,
+    /// Session failed with error
+    Failed { error: String },
+    /// Session cancelled by user
+    Cancelled,
+}
+
+/// SAGE Domain Events
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SageEvent {
+    /// Session was created
+    SessionCreated {
+        session_id: SageSessionId,
+        metadata: SageSessionMetadata,
+        timestamp: DateTime<Utc>,
+    },
+    /// User query received and being analyzed
+    QueryReceived {
+        session_id: SageSessionId,
+        query: String,
+        timestamp: DateTime<Utc>,
+    },
+    /// Query analysis completed with routing decision
+    QueryAnalyzed {
+        session_id: SageSessionId,
+        routing_strategy: String,
+        selected_experts: Vec<String>,
+        confidence_score: f64,
+        timestamp: DateTime<Utc>,
+    },
+    /// Routed to expert agents
+    RoutedToExperts {
+        session_id: SageSessionId,
+        experts: Vec<String>,
+        timestamp: DateTime<Utc>,
+    },
+    /// Expert response received
+    ExpertResponseReceived {
+        session_id: SageSessionId,
+        expert_id: String,
+        response: String,
+        confidence_score: f64,
+        timestamp: DateTime<Utc>,
+    },
+    /// Final response synthesized
+    ResponseSynthesized {
+        session_id: SageSessionId,
+        synthesized_response: String,
+        contributing_experts: Vec<String>,
+        timestamp: DateTime<Utc>,
+    },
+    /// Session completed
+    SessionCompleted {
+        session_id: SageSessionId,
+        duration_ms: u64,
+        timestamp: DateTime<Utc>,
+    },
+    /// Session failed
+    SessionFailed {
+        session_id: SageSessionId,
+        error: String,
+        timestamp: DateTime<Utc>,
+    },
+}
+
+impl DomainEvent for SageEvent {
+    fn event_type(&self) -> String {
+        match self {
+            SageEvent::SessionCreated { .. } => "sage.session.created".to_string(),
+            SageEvent::QueryReceived { .. } => "sage.query.received".to_string(),
+            SageEvent::QueryAnalyzed { .. } => "sage.query.analyzed".to_string(),
+            SageEvent::RoutedToExperts { .. } => "sage.routed.to.experts".to_string(),
+            SageEvent::ExpertResponseReceived { .. } => "sage.expert.response.received".to_string(),
+            SageEvent::ResponseSynthesized { .. } => "sage.response.synthesized".to_string(),
+            SageEvent::SessionCompleted { .. } => "sage.session.completed".to_string(),
+            SageEvent::SessionFailed { .. } => "sage.session.failed".to_string(),
+        }
+    }
+}
+
+/// SAGE Domain Commands
+#[derive(Debug, Clone)]
+pub enum SageCommand {
+    /// Start a new orchestration session
+    StartSession {
+        user_query: String,
+        context: HashMap<String, String>,
+        selected_expert: Option<String>,
+    },
+    /// Process user query through expert routing
+    ProcessQuery {
+        session_id: SageSessionId,
+    },
+    /// Route query to specific experts
+    RouteToExperts {
+        session_id: SageSessionId,
+        experts: Vec<String>,
+    },
+    /// Synthesize expert responses into final answer
+    SynthesizeResponse {
+        session_id: SageSessionId,
+        expert_responses: Vec<(String, String, f64)>, // expert_id, response, confidence
+    },
+    /// Complete the session
+    CompleteSession {
+        session_id: SageSessionId,
+    },
+    /// Cancel the session
+    CancelSession {
+        session_id: SageSessionId,
+        reason: String,
+    },
+}
+
+impl Command for SageCommand {
+    // Commands in cim-domain don't require specific methods in base trait
+}
+
+/// SAGE Domain Queries
+#[derive(Debug, Clone)]
+pub enum SageQuery {
+    /// Get session by ID
+    GetSession {
+        session_id: SageSessionId,
+    },
+    /// Get active sessions
+    GetActiveSessions,
+    /// Get session history for analytics
+    GetSessionHistory {
+        limit: Option<u32>,
+        offset: Option<u32>,
+    },
+    /// Get expert performance metrics
+    GetExpertMetrics {
+        expert_id: Option<String>,
+        time_range: Option<(DateTime<Utc>, DateTime<Utc>)>,
+    },
+}
+
+impl Query for SageQuery {
+    // Queries in cim-domain don't require specific methods in base trait
+}
+
+/// State machine transitions for SAGE sessions
+pub struct SageSessionStateMachine;
+
+impl SageSessionStateMachine {
+    /// Check if transition is valid
+    pub fn can_transition(from: &SageSessionState, to: &SageSessionState) -> bool {
+        use SageSessionState::*;
+        match (from, to) {
+            (Created, AnalyzingQuery) => true,
+            (AnalyzingQuery, RoutingToExperts) => true,
+            (AnalyzingQuery, Failed { .. }) => true,
+            (RoutingToExperts, ProcessingWithExperts) => true,
+            (RoutingToExperts, Failed { .. }) => true,
+            (ProcessingWithExperts, SynthesizingResponse) => true,
+            (ProcessingWithExperts, Failed { .. }) => true,
+            (SynthesizingResponse, Completed) => true,
+            (SynthesizingResponse, Failed { .. }) => true,
+            (_, Cancelled) => true, // Can cancel from any state
+            _ => false,
+        }
+    }
+    
+    /// Apply transition and return new state
+    pub fn transition(from: SageSessionState, to: SageSessionState) -> DomainResult<SageSessionState> {
+        if Self::can_transition(&from, &to) {
+            Ok(to)
+        } else {
+            Err(DomainError::InvalidStateTransition {
+                from: format!("{:?}", from),
+                to: format!("{:?}", to),
+            })
+        }
+    }
+}
+
+impl SageOrchestratorAggregate {
+    /// Create a new SAGE session aggregate
+    pub fn new(id: SageSessionId) -> Self {
+        Self {
+            id,
+            state: SageSessionState::Created,
+            version: 0,
+            applied_events: Vec::new(),
+            metadata: SageSessionMetadata {
+                user_query: String::new(),
+                selected_expert: None,
+                session_context: HashMap::new(),
+                created_at: Utc::now(),
+                last_updated: Utc::now(),
+            },
+        }
+    }
+    
+    /// Get aggregate ID
+    pub fn aggregate_id(&self) -> &SageSessionId {
+        &self.id
+    }
+
+    /// Get current version
+    pub fn version(&self) -> u64 {
+        self.version
+    }
+
+    /// Apply event to aggregate
+    pub fn apply_event(&mut self, event: SageEvent) -> Result<(), SageError> {
+        match &event {
+            SageEvent::SessionCreated { session_id, metadata, .. } => {
+                if session_id != &self.id {
+                    return Err(SageError::DomainError("Session ID mismatch".to_string()));
+                }
+                self.state = SageSessionState::Created;
+                self.metadata = metadata.clone();
+            }
+            SageEvent::QueryReceived { session_id, .. } => {
+                if session_id != &self.id {
+                    return Err(SageError::DomainError("Session ID mismatch".to_string()));
+                }
+                self.state = SageSessionStateMachine::transition(
+                    self.state.clone(),
+                    SageSessionState::AnalyzingQuery
+                ).map_err(|e| SageError::DomainError(e.to_string()))?;
+            }
+            SageEvent::QueryAnalyzed { session_id, .. } => {
+                if session_id != &self.id {
+                    return Err(SageError::DomainError("Session ID mismatch".to_string()));
+                }
+                self.state = SageSessionStateMachine::transition(
+                    self.state.clone(),
+                    SageSessionState::RoutingToExperts
+                ).map_err(|e| SageError::DomainError(e.to_string()))?;
+            }
+            SageEvent::RoutedToExperts { session_id, .. } => {
+                if session_id != &self.id {
+                    return Err(SageError::DomainError("Session ID mismatch".to_string()));
+                }
+                self.state = SageSessionStateMachine::transition(
+                    self.state.clone(),
+                    SageSessionState::ProcessingWithExperts
+                ).map_err(|e| SageError::DomainError(e.to_string()))?;
+            }
+            SageEvent::ResponseSynthesized { session_id, .. } => {
+                if session_id != &self.id {
+                    return Err(SageError::DomainError("Session ID mismatch".to_string()));
+                }
+                self.state = SageSessionStateMachine::transition(
+                    self.state.clone(),
+                    SageSessionState::SynthesizingResponse
+                ).map_err(|e| SageError::DomainError(e.to_string()))?;
+            }
+            SageEvent::SessionCompleted { session_id, .. } => {
+                if session_id != &self.id {
+                    return Err(SageError::DomainError("Session ID mismatch".to_string()));
+                }
+                self.state = SageSessionStateMachine::transition(
+                    self.state.clone(),
+                    SageSessionState::Completed
+                ).map_err(|e| SageError::DomainError(e.to_string()))?;
+            }
+            SageEvent::SessionFailed { session_id, error, .. } => {
+                if session_id != &self.id {
+                    return Err(SageError::DomainError("Session ID mismatch".to_string()));
+                }
+                self.state = SageSessionStateMachine::transition(
+                    self.state.clone(),
+                    SageSessionState::Failed { error: error.clone() }
+                ).map_err(|e| SageError::DomainError(e.to_string()))?;
+            }
+            _ => {} // Handle other events as needed
+        }
+
+        self.applied_events.push(event);
+        self.version += 1;
+        Ok(())
+    }
+
+    /// Get applied events
+    pub fn events(&self) -> &[SageEvent] {
+        &self.applied_events
+    }
+
+    /// Clear applied events (after saving to repository)
+    pub fn clear_events(&mut self) {
+        self.applied_events.clear();
+    }
+}
+
+/// Command handler for SAGE aggregate
+impl SageOrchestratorAggregate {
+    /// Handle SAGE commands and produce events
+    pub fn handle_command(&mut self, command: SageCommand) -> DomainResult<Vec<SageEvent>> {
+        match command {
+            SageCommand::StartSession { user_query, context, selected_expert } => {
+                let metadata = SageSessionMetadata {
+                    user_query: user_query.clone(),
+                    selected_expert,
+                    session_context: context,
+                    created_at: Utc::now(),
+                    last_updated: Utc::now(),
+                };
+                
+                let events = vec![
+                    SageEvent::SessionCreated {
+                        session_id: self.id.clone(),
+                        metadata,
+                        timestamp: Utc::now(),
+                    },
+                    SageEvent::QueryReceived {
+                        session_id: self.id.clone(),
+                        query: user_query,
+                        timestamp: Utc::now(),
+                    }
+                ];
+                
+                Ok(events)
+            }
+            
+            SageCommand::RouteToExperts { session_id, experts } => {
+                if session_id != self.id {
+                    return Err(DomainError::BusinessRuleViolation { 
+                        rule: "Session ID must match aggregate ID".to_string() 
+                    });
+                }
+                
+                if !matches!(self.state, SageSessionState::RoutingToExperts) {
+                    return Err(DomainError::InvalidOperation {
+                        reason: format!("Cannot route to experts from state {:?}", self.state)
+                    });
+                }
+                
+                Ok(vec![SageEvent::RoutedToExperts {
+                    session_id: self.id.clone(),
+                    experts,
+                    timestamp: Utc::now(),
+                }])
+            }
+            
+            SageCommand::SynthesizeResponse { session_id, expert_responses } => {
+                if session_id != self.id {
+                    return Err(DomainError::BusinessRuleViolation { 
+                        rule: "Session ID must match aggregate ID".to_string() 
+                    });
+                }
+                
+                if !matches!(self.state, SageSessionState::ProcessingWithExperts) {
+                    return Err(DomainError::InvalidOperation {
+                        reason: format!("Cannot synthesize response from state {:?}", self.state)
+                    });
+                }
+                
+                // Simple synthesis - in reality this would be more sophisticated
+                let synthesized_response = expert_responses
+                    .iter()
+                    .map(|(_, response, _)| response.clone())
+                    .collect::<Vec<_>>()
+                    .join("\n\n");
+                
+                let contributing_experts: Vec<String> = expert_responses
+                    .into_iter()
+                    .map(|(expert_id, _, _)| expert_id)
+                    .collect();
+                
+                Ok(vec![SageEvent::ResponseSynthesized {
+                    session_id: self.id.clone(),
+                    synthesized_response,
+                    contributing_experts,
+                    timestamp: Utc::now(),
+                }])
+            }
+            
+            SageCommand::CompleteSession { session_id } => {
+                if session_id != self.id {
+                    return Err(DomainError::BusinessRuleViolation { 
+                        rule: "Session ID must match aggregate ID".to_string() 
+                    });
+                }
+                
+                if !matches!(self.state, SageSessionState::SynthesizingResponse) {
+                    return Err(DomainError::InvalidOperation {
+                        reason: format!("Cannot complete session from state {:?}", self.state)
+                    });
+                }
+                
+                Ok(vec![SageEvent::SessionCompleted {
+                    session_id: self.id.clone(),
+                    duration_ms: 0, // Would calculate actual duration
+                    timestamp: Utc::now(),
+                }])
+            }
+            
+            _ => Ok(vec![]), // Handle other commands as needed
+        }
+    }
+}
+
+/// Repository trait for SAGE aggregates
+#[async_trait]
+pub trait SageRepository {
+    async fn save(&self, aggregate: &SageOrchestratorAggregate) -> DomainResult<()>;
+    async fn load(&self, id: &SageSessionId) -> DomainResult<Option<SageOrchestratorAggregate>>;
+    async fn get_active_sessions(&self) -> DomainResult<Vec<SageOrchestratorAggregate>>;
+}
+
+/// NATS-based repository implementation
+pub struct NatsSageRepository {
+    nats_connection: Arc<async_nats::Client>,
+}
+
+impl NatsSageRepository {
+    pub fn new(nats_connection: Arc<async_nats::Client>) -> Self {
+        Self { nats_connection }
+    }
+}
+
+#[async_trait]
+impl SageRepository for NatsSageRepository {
+    async fn save(&self, aggregate: &SageOrchestratorAggregate) -> DomainResult<()> {
+        // Publish events to NATS event stream
+        for event in &aggregate.applied_events {
+            let subject = format!("cim.events.sage.{}", aggregate.id);
+            let payload = serde_json::to_vec(event)
+                .map_err(|e| DomainError::SerializationError(e.to_string()))?;
+            
+            self.nats_connection.publish(subject, payload.into()).await
+                .map_err(|e| DomainError::ExternalServiceError {
+                    service: "NATS".to_string(),
+                    message: format!("Failed to publish event: {}", e)
+                })?;
+        }
+        
+        Ok(())
+    }
+    
+    async fn load(&self, _id: &SageSessionId) -> DomainResult<Option<SageOrchestratorAggregate>> {
+        // Load aggregate by replaying events from stream
+        // This would typically use JetStream consumer to replay events
+        // For now, return None as placeholder
+        Ok(None)
+    }
+    
+    async fn get_active_sessions(&self) -> DomainResult<Vec<SageOrchestratorAggregate>> {
+        // Query active sessions from event store
+        // Placeholder implementation
+        Ok(vec![])
+    }
 }

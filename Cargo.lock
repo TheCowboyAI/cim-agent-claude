@@ -343,6 +343,42 @@ dependencies = [
 
 [[package]]
 name = "async-nats"
+version = "0.40.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e23419d455dc57d3ae60a2f4278cf561fc74fe866e548e14d2b0ad3e1b8ca0b2"
+dependencies = [
+ "base64",
+ "bytes",
+ "futures",
+ "memchr",
+ "nkeys",
+ "nuid",
+ "once_cell",
+ "pin-project",
+ "portable-atomic",
+ "rand 0.8.5",
+ "regex",
+ "ring",
+ "rustls-native-certs",
+ "rustls-pemfile",
+ "rustls-webpki 0.102.8",
+ "serde",
+ "serde_json",
+ "serde_nanos",
+ "serde_repr",
+ "thiserror 1.0.69",
+ "time",
+ "tokio",
+ "tokio-rustls",
+ "tokio-util",
+ "tokio-websockets",
+ "tracing",
+ "tryhard",
+ "url",
+]
+
+[[package]]
+name = "async-nats"
 version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2cf0ae68ffe9ef362127a2223b42f57104edb20a50429f8c6e058912212884f7"
@@ -798,6 +834,8 @@ dependencies = [
  "core2",
  "multibase",
  "multihash",
+ "serde",
+ "serde_bytes",
  "unsigned-varint",
 ]
 
@@ -810,6 +848,7 @@ dependencies = [
  "async-nats 0.42.0",
  "async-trait",
  "chrono",
+ "cim-domain",
  "cim-graph",
  "clap",
  "futures",
@@ -879,13 +918,55 @@ dependencies = [
 ]
 
 [[package]]
+name = "cim-component"
+version = "0.3.0"
+source = "git+https://github.com/TheCowboyAI/cim-component#c7c5ec8655063690582d65ea7db222d413ef9ad3"
+dependencies = [
+ "async-nats 0.40.0",
+ "async-trait",
+ "dashmap",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.16",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "cim-domain"
+version = "0.5.0"
+source = "git+https://github.com/thecowboyai/cim-domain.git#3836b7ef377141d80c4f39d089edc4f079b10673"
+dependencies = [
+ "anyhow",
+ "async-nats 0.41.0",
+ "async-trait",
+ "bytes",
+ "chrono",
+ "cid",
+ "cim-component",
+ "cim-ipld",
+ "cim-subject 0.5.0 (git+https://github.com/TheCowboyAI/cim-subject)",
+ "futures",
+ "indexmap",
+ "lru",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.16",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "cim-graph"
 version = "0.1.0"
 source = "git+https://github.com/thecowboyai/cim-graph.git#0891c13fbcd97c9945bb26473e384ea77a55cab8"
 dependencies = [
  "bincode",
  "chrono",
- "cim-subject",
+ "cim-subject 0.5.0 (git+https://github.com/thecowboyai/cim-subject.git?tag=v0.5.0)",
  "petgraph",
  "rayon",
  "serde",
@@ -929,6 +1010,21 @@ dependencies = [
 name = "cim-subject"
 version = "0.5.0"
 source = "git+https://github.com/thecowboyai/cim-subject.git?tag=v0.5.0#b427655266f0351be72a4b656b8435d2a3fd1ad5"
+dependencies = [
+ "cim-ipld",
+ "dashmap",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.16",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "cim-subject"
+version = "0.5.0"
+source = "git+https://github.com/TheCowboyAI/cim-subject#fb63eadbe000ceef21c707953edddb65908d5a8b"
 dependencies = [
  "cim-ipld",
  "dashmap",
@@ -3271,6 +3367,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b430e7953c29dd6a09afc29ff0bb69c6e306329ee6794700aee27b76a1aea8d"
 dependencies = [
  "core2",
+ "serde",
  "unsigned-varint",
 ]
 
@@ -4822,6 +4919,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5f0e2c6ed6606019b4e29e69dbaba95b11854410e5347d525002456dbbb786b6"
 dependencies = [
  "serde_derive",
+]
+
+[[package]]
+name = "serde_bytes"
+version = "0.11.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8437fd221bde2d4ca316d61b90e337e9e702b3820b87d63caa9ba6c02bd06d96"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

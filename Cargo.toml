@@ -41,6 +41,7 @@ sha2 = "0.10"
 serde_yaml = "0.9"
 hex = "0.4"
 cim-graph = { git = "https://github.com/thecowboyai/cim-graph.git" }
+cim-domain = { git = "https://github.com/thecowboyai/cim-domain.git" }
 # SAGE executable dependencies
 clap = { version = "4.5", features = ["derive"] }
 reqwest = { version = "0.12", features = ["json"] }
