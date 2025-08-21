@@ -48,6 +48,8 @@
           cargoLock = {
             lockFile = ./Cargo.lock;
             outputHashes = {
+              "cim-component-0.3.0" = "sha256-5HhzcP8O/lJqzw9IyNLN4Zk1fPVRvETDYYYHH35k8Ms=";
+              "cim-domain-0.5.0" = "sha256-cz8N9ahxASorc8gMcg+zblfNtcjibtWsvHzbSKjjhaU=";
               "cim-graph-0.1.0" = "sha256-0uaNwhQkLbeMJa25kNPhOSbnm6akD1LHalLGX4Pr6T0=";
               "cim-ipld-0.5.0" = "sha256-Yc2cczSARqegmei6V5+C8ChE/rg89fjHai3npc+PXwk=";
               "cim-subject-0.5.0" = "sha256-Kwxf6YJ42kA3C2kC0er7EvEVTqSixlxSSWCh9fHI5yg=";
@@ -78,6 +80,8 @@
           cargoLock = {
             lockFile = ./Cargo.lock;
             outputHashes = {
+              "cim-component-0.3.0" = "sha256-5HhzcP8O/lJqzw9IyNLN4Zk1fPVRvETDYYYHH35k8Ms=";
+              "cim-domain-0.5.0" = "sha256-cz8N9ahxASorc8gMcg+zblfNtcjibtWsvHzbSKjjhaU=";
               "cim-graph-0.1.0" = "sha256-0uaNwhQkLbeMJa25kNPhOSbnm6akD1LHalLGX4Pr6T0=";
               "cim-ipld-0.5.0" = "sha256-Yc2cczSARqegmei6V5+C8ChE/rg89fjHai3npc+PXwk=";
               "cim-subject-0.5.0" = "sha256-Kwxf6YJ42kA3C2kC0er7EvEVTqSixlxSSWCh9fHI5yg=";
@@ -205,6 +209,8 @@ EOF
           cargoLock = {
             lockFile = ./Cargo.lock;
             outputHashes = {
+              "cim-component-0.3.0" = "sha256-5HhzcP8O/lJqzw9IyNLN4Zk1fPVRvETDYYYHH35k8Ms=";
+              "cim-domain-0.5.0" = "sha256-cz8N9ahxASorc8gMcg+zblfNtcjibtWsvHzbSKjjhaU=";
               "cim-graph-0.1.0" = "sha256-0uaNwhQkLbeMJa25kNPhOSbnm6akD1LHalLGX4Pr6T0=";
               "cim-ipld-0.5.0" = "sha256-Yc2cczSARqegmei6V5+C8ChE/rg89fjHai3npc+PXwk=";
               "cim-subject-0.5.0" = "sha256-Kwxf6YJ42kA3C2kC0er7EvEVTqSixlxSSWCh9fHI5yg=";
