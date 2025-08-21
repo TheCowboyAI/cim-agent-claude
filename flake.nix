@@ -47,6 +47,11 @@
           
           cargoLock = {
             lockFile = ./Cargo.lock;
+            outputHashes = {
+              "cim-graph-0.1.0" = "sha256-0uaNwhQkLbeMJa25kNPhOSbnm6akD1LHalLGX4Pr6T0=";
+              "cim-ipld-0.5.0" = "sha256-Yc2cczSARqegmei6V5+C8ChE/rg89fjHai3npc+PXwk=";
+              "cim-subject-0.5.0" = "sha256-Kwxf6YJ42kA3C2kC0er7EvEVTqSixlxSSWCh9fHI5yg=";
+            };
           };
           
           buildInputs = commonBuildInputs;
@@ -72,6 +77,11 @@
           
           cargoLock = {
             lockFile = ./Cargo.lock;
+            outputHashes = {
+              "cim-graph-0.1.0" = "sha256-0uaNwhQkLbeMJa25kNPhOSbnm6akD1LHalLGX4Pr6T0=";
+              "cim-ipld-0.5.0" = "sha256-Yc2cczSARqegmei6V5+C8ChE/rg89fjHai3npc+PXwk=";
+              "cim-subject-0.5.0" = "sha256-Kwxf6YJ42kA3C2kC0er7EvEVTqSixlxSSWCh9fHI5yg=";
+            };
           };
           
           buildInputs = commonBuildInputs ++ (with pkgs; [
@@ -185,14 +195,46 @@ EOF
           };
         };
 
-        # Combined package with both components
+        # SAGE Service (Systematic Agent Guidance Engine)
+        cim-sage-service = pkgs.rustPlatform.buildRustPackage rec {
+          pname = "cim-sage-service";
+          version = "0.1.0";
+          
+          src = pkgs.lib.cleanSource ./.;
+          
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+            outputHashes = {
+              "cim-graph-0.1.0" = "sha256-0uaNwhQkLbeMJa25kNPhOSbnm6akD1LHalLGX4Pr6T0=";
+              "cim-ipld-0.5.0" = "sha256-Yc2cczSARqegmei6V5+C8ChE/rg89fjHai3npc+PXwk=";
+              "cim-subject-0.5.0" = "sha256-Kwxf6YJ42kA3C2kC0er7EvEVTqSixlxSSWCh9fHI5yg=";
+            };
+          };
+          
+          buildInputs = commonBuildInputs;
+          nativeBuildInputs = commonNativeBuildInputs;
+          
+          # Build only the SAGE service binary
+          cargoBuildOptions = [ "--bin" "sage_service" ];
+          cargoTestOptions = [ "--bin" "sage_service" ];
+          
+          meta = with pkgs.lib; {
+            description = "SAGE - Systematic Agent Guidance Engine for CIM orchestration";
+            homepage = "https://github.com/TheCowboyAI/cim-agent-claude";
+            license = licenses.mit;
+            maintainers = [ "Cowboy AI, LLC <info@thecowboy.ai>" ];
+            platforms = platforms.unix;
+          };
+        };
+
+        # Combined package with all components
         cim-agent-claude = pkgs.symlinkJoin {
           name = "cim-agent-claude";
           version = "0.1.0";
-          paths = [ cim-claude-adapter cim-claude-gui ];
+          paths = [ cim-claude-adapter cim-claude-gui cim-sage-service ];
           
           meta = with pkgs.lib; {
-            description = "Complete CIM Claude Agent with adapter service and GUI management interface";
+            description = "Complete CIM Claude Agent with SAGE orchestrator, adapter service and GUI";
             homepage = "https://github.com/TheCowboyAI/cim-agent-claude";
             license = licenses.mit;
             maintainers = [ "Cowboy AI, LLC <info@thecowboy.ai>" ];
@@ -208,6 +250,7 @@ EOF
           cim-claude-adapter = cim-claude-adapter;
           cim-claude-gui = cim-claude-gui;
           cim-claude-gui-wasm = cim-claude-gui-wasm;
+          cim-sage-service = cim-sage-service;
         };
 
         # Development shell

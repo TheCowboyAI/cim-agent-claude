@@ -20,6 +20,77 @@ in {
       description = "The CIM Agent Claude package to use";
     };
 
+    sage = {
+      enable = mkEnableOption "SAGE (Systematic Agent Guidance Engine) orchestrator service" // { default = cfg.enable; };
+      
+      package = mkOption {
+        type = types.package;
+        description = "The SAGE service package to use";
+      };
+      
+      user = mkOption {
+        type = types.str;
+        default = "sage";
+        description = "User to run the SAGE service as";
+      };
+      
+      group = mkOption {
+        type = types.str;
+        default = "sage";
+        description = "Group to run the SAGE service as";
+      };
+      
+      nats = {
+        url = mkOption {
+          type = types.str;
+          default = "nats://localhost:4222";
+          description = "NATS server URL for SAGE";
+        };
+        
+        sageSubject = mkOption {
+          type = types.str;
+          default = "cim.sage";
+          description = "NATS subject for SAGE requests";
+        };
+      };
+      
+      claude = {
+        apiKeyFile = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = "Path to file containing Claude API key for SAGE";
+        };
+      };
+      
+      server = {
+        port = mkOption {
+          type = types.port;
+          default = 8082;
+          description = "Port for the SAGE service";
+        };
+        
+        host = mkOption {
+          type = types.str;
+          default = "127.0.0.1";
+          description = "Host to bind the SAGE service to";
+        };
+      };
+      
+      observability = {
+        logLevel = mkOption {
+          type = types.enum [ "TRACE" "DEBUG" "INFO" "WARN" "ERROR" ];
+          default = "INFO";
+          description = "Log level for SAGE service";
+        };
+      };
+      
+      environmentFile = mkOption {
+        type = types.nullOr types.path;
+        default = null;
+        description = "Path to environment file containing SAGE secrets";
+      };
+    };
+
     adapter = {
       enable = mkEnableOption "CIM Claude Adapter service" // { default = cfg.enable; };
       
@@ -160,8 +231,23 @@ in {
       };
     };
 
+    gui = {
+      enable = mkEnableOption "CIM Claude Desktop GUI" // { default = false; };
+      
+      package = mkOption {
+        type = types.package;
+        description = "The CIM Claude GUI package to use";
+      };
+      
+      autostart = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Automatically start GUI on system boot";
+      };
+    };
+
     web = {
-      enable = mkEnableOption "CIM Claude Web GUI" // { default = cfg.enable; };
+      enable = mkEnableOption "CIM Claude Web GUI" // { default = false; };
       
       package = mkOption {
         type = types.package;
@@ -202,23 +288,42 @@ in {
 
   config = mkIf cfg.enable {
     
-    # User and group for the adapter service
-    users.users = mkIf cfg.adapter.enable {
-      "${cfg.adapter.user}" = {
-        description = "CIM Claude Adapter service user";
-        isSystemUser = true;
-        group = cfg.adapter.group;
-        home = "/var/lib/cim-claude";
-        createHome = true;
-      };
-    };
+    # Users and groups for services
+    users.users = mkMerge [
+      (mkIf cfg.adapter.enable {
+        "${cfg.adapter.user}" = {
+          description = "CIM Claude Adapter service user";
+          isSystemUser = true;
+          group = cfg.adapter.group;
+          home = "/var/lib/cim-claude";
+          createHome = true;
+        };
+      })
+      (mkIf cfg.sage.enable {
+        "${cfg.sage.user}" = {
+          description = "SAGE orchestrator service user";
+          isSystemUser = true;
+          group = cfg.sage.group;
+          home = "/var/lib/sage";
+          createHome = true;
+        };
+      })
+    ];
 
-    users.groups = mkIf cfg.adapter.enable {
-      "${cfg.adapter.group}" = {};
-    };
+    users.groups = mkMerge [
+      (mkIf cfg.adapter.enable {
+        "${cfg.adapter.group}" = {};
+      })
+      (mkIf cfg.sage.enable {
+        "${cfg.sage.group}" = {};
+      })
+    ];
 
-    # Systemd service for the adapter
-    systemd.services.cim-claude-adapter = mkIf cfg.adapter.enable {
+    # Systemd services
+    systemd.services = mkMerge [
+      # CIM Claude Adapter service
+      (mkIf cfg.adapter.enable {
+        cim-claude-adapter = {
       description = "CIM Claude Adapter - Event-driven Claude AI integration service";
       after = [ "network.target" ];
       wantedBy = [ "multi-user.target" ];
@@ -276,14 +381,73 @@ in {
         RUST_LOG = "${cfg.adapter.observability.logLevel}";
       };
       
-      preStart = mkIf (cfg.adapter.claude.apiKeyFile != null) ''
-        if [ -f "${cfg.adapter.claude.apiKeyFile}" ]; then
-          export CLAUDE_API_KEY="$(cat "${cfg.adapter.claude.apiKeyFile}")"
-        else
-          echo "Warning: Claude API key file not found at ${cfg.adapter.claude.apiKeyFile}"
-        fi
-      '';
-    };
+          preStart = mkIf (cfg.adapter.claude.apiKeyFile != null) ''
+            if [ -f "${cfg.adapter.claude.apiKeyFile}" ]; then
+              export CLAUDE_API_KEY="$(cat "${cfg.adapter.claude.apiKeyFile}")"
+            else
+              echo "Warning: Claude API key file not found at ${cfg.adapter.claude.apiKeyFile}"
+            fi
+          '';
+        };
+      })
+      
+      # SAGE service
+      (mkIf cfg.sage.enable {
+        sage-service = {
+          description = "SAGE - Systematic Agent Guidance Engine orchestrator";
+          after = [ "network.target" ];
+          wantedBy = [ "multi-user.target" ];
+          
+          serviceConfig = {
+            Type = "simple";
+            User = cfg.sage.user;
+            Group = cfg.sage.group;
+            Restart = "always";
+            RestartSec = 10;
+            
+            # Security settings
+            NoNewPrivileges = true;
+            PrivateTmp = true;
+            ProtectSystem = "strict";
+            ProtectHome = true;
+            ReadWritePaths = [ "/var/lib/sage" ];
+            
+            # Resource limits
+            MemoryMax = "2G";
+            TasksMax = 2000;
+            
+            # Execution
+            ExecStart = "${cfg.sage.package}/bin/sage_service";
+            WorkingDirectory = "/var/lib/sage";
+            
+            # Environment file
+            EnvironmentFile = mkIf (cfg.sage.environmentFile != null) cfg.sage.environmentFile;
+          };
+          
+          environment = {
+            # NATS Configuration
+            NATS_URL = cfg.sage.nats.url;
+            SAGE_SUBJECT = cfg.sage.nats.sageSubject;
+            
+            # Server Configuration
+            SERVER_HOST = cfg.sage.server.host;
+            SERVER_PORT = toString cfg.sage.server.port;
+            
+            # Observability Configuration
+            LOG_LEVEL = cfg.sage.observability.logLevel;
+            RUST_LOG = "${cfg.sage.observability.logLevel}";
+          };
+          
+          preStart = mkIf (cfg.sage.claude.apiKeyFile != null) ''
+            if [ -f "${cfg.sage.claude.apiKeyFile}" ]; then
+              export CLAUDE_API_KEY="$(cat "${cfg.sage.claude.apiKeyFile}")"
+            else
+              echo "Warning: SAGE Claude API key file not found at ${cfg.sage.claude.apiKeyFile}"
+            fi
+          '';
+        };
+      })
+    ];
 
     # Nginx configuration for the web interface
     services.nginx = mkIf cfg.web.enable {
@@ -377,14 +541,15 @@ in {
       allowedTCPPorts = mkMerge [
         (mkIf cfg.adapter.enable [ cfg.adapter.server.port ])
         (mkIf (cfg.adapter.enable && cfg.adapter.observability.metricsEnabled) [ cfg.adapter.observability.metricsPort ])
+        (mkIf cfg.sage.enable [ cfg.sage.server.port ])
         (mkIf cfg.web.enable [ cfg.web.port ])
         (mkIf (cfg.web.enable && cfg.web.enableSSL) [ 443 ])
-        (mkIf (cfg.adapter.enable && cfg.adapter.nats.url == "nats://localhost:4222") [ 4222 8222 ]) # NATS TCP and WebSocket ports
+        (mkIf ((cfg.adapter.enable && cfg.adapter.nats.url == "nats://localhost:4222") || (cfg.sage.enable && cfg.sage.nats.url == "nats://localhost:4222")) [ 4222 8222 ]) # NATS TCP and WebSocket ports
       ];
     };
 
     # Ensure NATS is available if using default local NATS
-    services.nats = mkIf (cfg.adapter.enable && cfg.adapter.nats.url == "nats://localhost:4222") {
+    services.nats = mkIf ((cfg.adapter.enable && cfg.adapter.nats.url == "nats://localhost:4222") || (cfg.sage.enable && cfg.sage.nats.url == "nats://localhost:4222")) {
       enable = mkDefault true;
       jetstream = true;
       port = 4222;
@@ -410,7 +575,25 @@ in {
     # System packages
     environment.systemPackages = mkMerge [
       (mkIf cfg.adapter.enable [ cfg.package ])
+      (mkIf cfg.sage.enable [ cfg.sage.package ])
+      (mkIf cfg.gui.enable [ cfg.gui.package ])
       (mkIf cfg.web.enable [ cfg.web.package ])
     ];
+    
+    # Desktop GUI service (optional)
+    systemd.user.services = mkIf cfg.gui.enable {
+      cim-claude-gui = mkIf cfg.gui.autostart {
+        description = "CIM Claude Desktop GUI";
+        wantedBy = [ "default.target" ];
+        after = [ "graphical-session.target" ];
+        
+        serviceConfig = {
+          Type = "simple";
+          ExecStart = "${cfg.gui.package}/bin/cim-claude-gui";
+          Restart = "on-failure";
+          RestartSec = 5;
+        };
+      };
+    };
   };
 }

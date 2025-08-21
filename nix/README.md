@@ -1,46 +1,222 @@
-# CIM Agent Claude - NixOS Installation Guide
+# CIM Agent Claude NixOS Module
 
-This directory contains the NixOS module and configuration files for CIM Agent Claude, providing a unified installation of the adapter service and web GUI.
+A comprehensive NixOS module for the CIM (Composable Information Machine) Agent Claude ecosystem, providing multiple services with flexible enable/disable options.
 
 ## Quick Start
 
-### 1. Add to your NixOS configuration
+### 1. Add to your flake inputs:
 
 ```nix
-# In your configuration.nix or flake.nix
 {
-  inputs.cim-agent-claude.url = "github:TheCowboyAI/cim-agent-claude";
-  
-  outputs = { self, nixpkgs, cim-agent-claude, ... }: {
-    nixosConfigurations.your-host = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      modules = [
-        cim-agent-claude.nixosModules.cim-agent-claude
-        {
-          services.cim-agent-claude = {
-            enable = true;
-            package = cim-agent-claude.packages.x86_64-linux.cim-claude-adapter;
-            web.package = cim-agent-claude.packages.x86_64-linux.cim-claude-gui-wasm;
-            
-            # Configure your Claude API key
-            adapter.claude.apiKeyFile = "/path/to/your/claude-api-key";
-          };
-        }
-      ];
-    };
+  inputs = {
+    cim-agent-claude.url = "github:TheCowboyAI/cim-agent-claude";
   };
 }
 ```
 
-### 2. Deploy
+### 2. Import the module:
+
+```nix
+{
+  imports = [
+    cim-agent-claude.nixosModules.default
+  ];
+}
+```
+
+### 3. Basic configuration:
+
+```nix
+services.cim-agent-claude = {
+  enable = true;
+  package = cim-agent-claude.packages.${pkgs.system}.cim-agent-claude;
+  
+  # Enable SAGE orchestrator (recommended)
+  sage = {
+    enable = true;
+    package = cim-agent-claude.packages.${pkgs.system}.cim-sage-service;
+    claude.apiKeyFile = "/var/lib/sage/claude-api-key";
+  };
+};
+```
+
+## Available Services
+
+### 🎭 SAGE (Systematic Agent Guidance Engine)
+**Recommended primary service** - Intelligent orchestrator with 17 expert agents
+
+```nix
+services.cim-agent-claude.sage = {
+  enable = true;  # Default: follows main enable
+  package = cim-agent-claude.packages.${pkgs.system}.cim-sage-service;
+  
+  user = "sage";
+  group = "sage";
+  
+  nats = {
+    url = "nats://localhost:4222";
+    sageSubject = "cim.sage";
+  };
+  
+  claude = {
+    apiKeyFile = "/var/lib/sage/claude-api-key";  # Required
+  };
+  
+  server = {
+    host = "127.0.0.1";
+    port = 8082;
+  };
+  
+  observability = {
+    logLevel = "INFO";  # TRACE, DEBUG, INFO, WARN, ERROR
+  };
+  
+  environmentFile = null;  # Optional secrets file
+};
+```
+
+### 🔧 Claude Adapter Service
+Direct Claude API integration service
+
+```nix
+services.cim-agent-claude.adapter = {
+  enable = false;  # Default: follows main enable, often not needed with SAGE
+  
+  user = "cim-claude";
+  group = "cim-claude";
+  
+  # ... (see full configuration in example files)
+};
+```
+
+### 🖥️ Desktop GUI
+Native desktop application using Iced
+
+```nix
+services.cim-agent-claude.gui = {
+  enable = false;  # Default: disabled
+  package = cim-agent-claude.packages.${pkgs.system}.cim-claude-gui;
+  
+  autostart = false;  # Auto-launch on user login
+};
+```
+
+### 🌐 Web Interface
+WebAssembly-based web GUI served via nginx
+
+```nix
+services.cim-agent-claude.web = {
+  enable = false;  # Default: disabled
+  package = cim-agent-claude.packages.${pkgs.system}.cim-claude-gui-wasm;
+  
+  virtualHost = "cim-claude.local";
+  port = 8081;
+  
+  # SSL support
+  enableSSL = false;
+  sslCertificate = null;
+  sslCertificateKey = null;
+};
+```
+
+## Service Combinations
+
+### Option 1: SAGE Only (Recommended)
+Minimal setup with intelligent orchestration:
+
+```nix
+services.cim-agent-claude = {
+  enable = true;
+  package = cim-agent-claude.packages.${pkgs.system}.cim-agent-claude;
+  
+  sage = {
+    enable = true;
+    package = cim-agent-claude.packages.${pkgs.system}.cim-sage-service;
+    claude.apiKeyFile = "/var/lib/sage/claude-api-key";
+  };
+  
+  # Explicitly disable other services
+  adapter.enable = false;
+  gui.enable = false;
+  web.enable = false;
+};
+```
+
+### Option 2: SAGE + Web Interface
+Perfect for server deployments:
+
+```nix
+services.cim-agent-claude = {
+  enable = true;
+  package = cim-agent-claude.packages.${pkgs.system}.cim-agent-claude;
+  
+  sage = {
+    enable = true;
+    package = cim-agent-claude.packages.${pkgs.system}.cim-sage-service;
+    claude.apiKeyFile = "/var/lib/sage/claude-api-key";
+  };
+  
+  web = {
+    enable = true;
+    package = cim-agent-claude.packages.${pkgs.system}.cim-claude-gui-wasm;
+    virtualHost = "cim.example.com";
+  };
+  
+  adapter.enable = false;
+  gui.enable = false;
+};
+```
+
+## Expert Agents Available in SAGE
+
+SAGE provides 17 specialized expert agents:
+
+1. **🎭 sage** - Master orchestrator
+2. **🏗️ cim-expert** - CIM architecture & foundations
+3. **🌐 cim-domain-expert** - Domain-specific architecture
+4. **📐 ddd-expert** - Domain-driven design
+5. **🔍 event-storming-expert** - Collaborative discovery
+6. **📊 domain-expert** - Domain creation & validation
+7. **📋 bdd-expert** - Behavior-driven development
+8. **🧪 tdd-expert** - Test-driven development
+9. **✅ qa-expert** - Quality assurance
+10. **📨 nats-expert** - NATS messaging
+11. **🌐 network-expert** - Network topology
+12. **⚙️ nix-expert** - Nix configuration
+13. **🔧 git-expert** - Git & GitHub operations
+14. **📐 subject-expert** - CIM subject algebra
+15. **🎨 iced-ui-expert** - Desktop GUI development
+16. **🔄 elm-architecture-expert** - Functional UI patterns
+17. **⚡ cim-tea-ecs-expert** - TEA+ECS integration
+
+## API Key Management
+
+Create secure API key files:
+
+```bash
+# For SAGE service
+sudo mkdir -p /var/lib/sage
+echo "sk-your-claude-api-key" | sudo tee /var/lib/sage/claude-api-key
+sudo chown sage:sage /var/lib/sage/claude-api-key
+sudo chmod 600 /var/lib/sage/claude-api-key
+
+# For Adapter service (if enabled)
+sudo mkdir -p /var/lib/cim-claude
+echo "sk-your-claude-api-key" | sudo tee /var/lib/cim-claude/claude-api-key
+sudo chown cim-claude:cim-claude /var/lib/cim-claude/claude-api-key
+sudo chmod 600 /var/lib/cim-claude/claude-api-key
+```
+
+## Deploy
 
 ```bash
 sudo nixos-rebuild switch
 ```
 
-### 3. Access the services
+## Access Services
 
-- **Web GUI**: http://localhost:8081
+- **SAGE Service**: Port 8082
+- **Web GUI**: http://localhost:8081  
 - **Adapter API**: http://localhost:8080
 - **Metrics**: http://localhost:9090/metrics
 
