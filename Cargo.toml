@@ -40,6 +40,7 @@ anyhow = { workspace = true }
 sha2 = "0.10"
 serde_yaml = "0.9"
 hex = "0.4"
+futures-util = "0.3"
 cim-graph = { git = "https://github.com/thecowboyai/cim-graph.git" }
 cim-domain = { git = "https://github.com/thecowboyai/cim-domain.git" }
 # SAGE executable dependencies

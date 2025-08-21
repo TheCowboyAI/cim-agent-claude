@@ -196,11 +196,12 @@ impl SageService {
                     // Create a simple response (without full orchestration for now)
                     let response = SageResponse {
                         request_id: request.request_id.clone(),
-                        result: "SAGE orchestration response - basic implementation".to_string(),
+                        response: "SAGE orchestration response - basic implementation".to_string(),
                         expert_agents_used: vec!["cim-expert".to_string()],
-                        consciousness_state: "active".to_string(),
-                        processing_time_ms: 100,
+                        orchestration_complexity: "simple".to_string(),
                         confidence_score: 0.8,
+                        follow_up_suggestions: vec!["Consider adding domain context".to_string()],
+                        updated_context: request.context.clone(),
                     };
                     
                     // Publish response
