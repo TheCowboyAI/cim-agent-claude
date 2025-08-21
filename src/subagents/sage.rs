@@ -14,14 +14,14 @@
 //! - Entities → ID + collection of components
 
 use super::{Subagent, SubagentQuery, SubagentResponse, SubagentError, SubagentCapability};
-use super::router::{DomainType, DomainAnalysis, SubjectResolution, ResolutionStrategy};
+use super::router::DomainType;
 use super::registry::SubagentRegistry;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use chrono::{DateTime, Utc};
-use tracing::{info, debug, warn, error};
+use tracing::{info, debug, warn};
 use sha2::{Sha256, Digest};
 use futures::StreamExt;
 
@@ -645,8 +645,8 @@ impl SageOrchestrator {
         self.persist_current_organization_state(&nats_connection, cid).await?;
 
         info!("SAGE successfully published OrganizationCreated event: {} (Stream: {}, Sequence: {})", 
-              event_id, _ack_info.stream, _ack_info.sequence);
-        Ok(event_id)
+              event.event_id, _ack_info.stream, _ack_info.sequence);
+        Ok(event.event_id.clone())
     }
 
     /// SAGE Core Operation: Validate organization establishment

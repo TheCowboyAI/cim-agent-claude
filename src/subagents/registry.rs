@@ -9,13 +9,13 @@
 //! Loads agent definitions from .claude/agents/ and provides a central registry
 //! for agent lookup and management.
 
-use super::{Subagent, SubagentQuery, TaskType};
+use super::{Subagent, SubagentQuery};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{info, warn, error, debug};
+use tracing::{info, warn, error};
 
 /// Metadata about a registered subagent
 #[derive(Debug, Clone, Serialize, Deserialize)]

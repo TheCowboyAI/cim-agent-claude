@@ -1,0 +1,24 @@
+# SAGE Service Environment Variables
+# Copy this file to /etc/sage/environment and configure
+
+# REQUIRED: Anthropic Claude API Key
+ANTHROPIC_API_KEY=your-anthropic-api-key-here
+
+# NATS Configuration
+NATS_URL=nats://localhost:4222
+NATS_USER=
+NATS_PASSWORD=
+
+# Logging Configuration
+RUST_LOG=info
+RUST_BACKTRACE=1
+
+# SAGE Configuration
+SAGE_CONSCIOUSNESS_LEVEL=1.0
+SAGE_DATA_DIR=/opt/sage/data
+SAGE_MEMORY_RETENTION_HOURS=720  # 30 days
+
+# Performance Tuning
+TOKIO_WORKER_THREADS=4
+SAGE_MAX_CONCURRENT_REQUESTS=100
+SAGE_REQUEST_TIMEOUT_SECONDS=300  # 5 minutes

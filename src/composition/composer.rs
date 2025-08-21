@@ -14,7 +14,7 @@ use async_trait::async_trait;
 use tracing::{info, debug, error};
 
 use crate::infrastructure::{NatsInfrastructure, Config};
-use super::{ModuleRegistry, ModuleInfo, ModuleType, EventFlow};
+use super::{ModuleRegistry, ModuleInfo, ModuleType};
 
 /// CIM Module trait - all modules must implement this
 #[async_trait]

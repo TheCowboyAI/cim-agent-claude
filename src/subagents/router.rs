@@ -10,11 +10,11 @@
 //! hierarchies that represent the mathematical structure of CIM domains and capabilities.
 
 use super::{SubagentQuery, SubagentCapability, TaskType, ComplexityLevel, SubagentError};
-use super::registry::{SubagentRegistry, SubagentInfo};
+use super::registry::SubagentRegistry;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 /// Subject algebra resolution result
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -269,7 +269,7 @@ pub struct IntentPattern {
 impl SubagentRouter {
     /// Create a new CIM subject algebra router
     pub fn new(registry: Arc<SubagentRegistry>) -> Self {
-        let mut router = Self {
+        let router = Self {
             registry,
             subject_hierarchy: Self::initialize_cim_subject_hierarchy(),
             domain_algebra: Self::initialize_domain_algebra(),
@@ -520,7 +520,7 @@ impl SubagentRouter {
         for (domain_type, signatures) in domain_signatures {
             let mut score = 0.0;
             for signature in &signatures {
-                if text.contains(&signature) {
+                if text.contains(signature.as_str()) {
                     score += 1.0;
                 }
             }
@@ -633,7 +633,7 @@ impl SubagentRouter {
 
         // For composition queries, check if we have defined composition subjects
         for composition in &self.subject_hierarchy.compositions {
-            let mut domains_match = composition.participating_domains.contains(&analysis.primary_domain);
+            let domains_match = composition.participating_domains.contains(&analysis.primary_domain);
             if domains_match {
                 for secondary_domain in &analysis.secondary_domains {
                     if composition.participating_domains.contains(secondary_domain) {

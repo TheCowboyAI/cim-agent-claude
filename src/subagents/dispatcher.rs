@@ -11,7 +11,7 @@
 
 use super::{SubagentQuery, SubagentResponse, SubagentError, Subagent};
 use super::registry::SubagentRegistry;
-use super::router::{SubagentRouter, SubjectResolution, ResolutionStrategy, RouteDecision, ExecutionStrategy};
+use super::router::{SubagentRouter, RouteDecision, ExecutionStrategy};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;

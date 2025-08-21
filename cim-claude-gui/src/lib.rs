@@ -14,6 +14,7 @@
 pub mod app;
 pub mod messages;
 pub mod nats_client;
+pub mod sage_client;
 pub mod views;
 
 #[cfg(target_arch = "wasm32")]

@@ -10,6 +10,18 @@ repository = "https://github.com/TheCowboyAI/cim-agent-claude"
 name = "cim-agent-claude"
 path = "src/main.rs"
 
+[[bin]]
+name = "sage"
+path = "src/bin/sage.rs"
+
+[[bin]]
+name = "sage-service"
+path = "src/bin/sage_service.rs"
+
+[[bin]]
+name = "sage-test"
+path = "src/bin/sage_test.rs"
+
 [dependencies]
 # Workspace dependencies
 tokio = { workspace = true }
@@ -29,6 +41,9 @@ sha2 = "0.10"
 serde_yaml = "0.9"
 hex = "0.4"
 cim-graph = { git = "https://github.com/thecowboyai/cim-graph.git" }
+# SAGE executable dependencies
+clap = { version = "4.5", features = ["derive"] }
+reqwest = { version = "0.12", features = ["json"] }
 
 [dev-dependencies]
 # Test dependencies for integration tests

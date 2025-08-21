@@ -9,7 +9,7 @@
 
 use std::time::Duration;
 use serde_json::Value;
-use reqwest::{Client, header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE}};
+use reqwest::{Client, header::{HeaderMap, HeaderValue, CONTENT_TYPE}};
 
 use crate::{ClaudeError, ClaudeRequest, ClaudeResponse, ClaudeMessage};
 
@@ -52,8 +52,8 @@ impl ClaudeClient {
 
         let mut headers = HeaderMap::new();
         headers.insert(
-            AUTHORIZATION,
-            HeaderValue::from_str(&format!("Bearer {}", config.api_key))
+            "x-api-key",
+            HeaderValue::from_str(&config.api_key)
                 .map_err(|e| ClaudeError::Configuration(format!("Invalid API key format: {}", e)))?,
         );
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));

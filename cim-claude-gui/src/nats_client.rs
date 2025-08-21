@@ -3,17 +3,11 @@
  * All rights reserved.
  */
 
-use std::sync::Arc;
-use tokio::sync::Mutex;
 use iced::futures::{stream, Stream};
 use futures::StreamExt;
-use serde_json;
 use tracing::{info, error, warn};
 
-use cim_claude_adapter::domain::{
-    commands::CommandEnvelope, 
-    events::EventEnvelope,
-};
+// Simplified domain types - complex command/event system removed
 use crate::messages::Message;
 
 /// Global NATS client - initialized once at startup
@@ -31,7 +25,7 @@ pub async fn initialize_nats() -> Result<(), String> {
 }
 
 /// Get the global NATS client
-fn get_nats_client() -> Option<&'static async_nats::Client> {
+pub fn get_nats_client() -> Option<&'static async_nats::Client> {
     NATS_CLIENT.get()
 }
 
@@ -39,27 +33,19 @@ fn get_nats_client() -> Option<&'static async_nats::Client> {
 pub mod commands {
     use super::*;
     
-    /// Publish command to NATS - uses global client
-    pub async fn publish_command(command_envelope: CommandEnvelope) -> Message {
+    /// Legacy command publishing (simplified - SAGE handles complex messaging)
+    pub async fn publish_simple_message(subject: String, message: String) -> Message {
         match get_nats_client() {
             Some(client) => {
-                match serde_json::to_string(&command_envelope) {
-                    Ok(json) => {
-                        info!("Publishing command to cim.claude.commands");
-                        match client.publish("cim.claude.commands", json.into()).await {
-                            Ok(_) => {
-                                info!("Command published successfully");
-                                Message::CommandSent
-                            }
-                            Err(e) => {
-                                error!("NATS publish failed: {}", e);
-                                Message::Error(format!("Publish failed: {}", e))
-                            }
-                        }
+                info!("Publishing message to {}", subject);
+                match client.publish(subject, message.into()).await {
+                    Ok(_) => {
+                        info!("Message published successfully");
+                        Message::CommandSent
                     }
                     Err(e) => {
-                        error!("Command serialization failed: {}", e);
-                        Message::Error(format!("Serialization failed: {}", e))
+                        error!("NATS publish failed: {}", e);
+                        Message::Error(format!("Publish failed: {}", e))
                     }
                 }
             }
@@ -80,14 +66,16 @@ pub fn nats_event_stream() -> impl Stream<Item = Message> {
                     Ok(mut subscriber) => {
                         info!("NATS event stream started");
                         while let Some(msg) = subscriber.next().await {
-                            match serde_json::from_slice::<EventEnvelope>(&msg.payload) {
-                                Ok(event) => {
-                                    info!("Received event: {:?}", event);
-                                    return Some((Message::EventReceived(event), ()));
+                            // Simplified event handling - just log the message
+                            match String::from_utf8(msg.payload.to_vec()) {
+                                Ok(message) => {
+                                    info!("Received raw message: {}", message);
+                                    // For now, just ignore events since SAGE handles messaging
+                                    continue;
                                 }
                                 Err(e) => {
-                                    warn!("Failed to deserialize event: {}", e);
-                                    return Some((Message::Error(format!("Event deserialization failed: {}", e)), ()));
+                                    warn!("Failed to parse message as UTF-8: {}", e);
+                                    return Some((Message::Error(format!("Message parsing failed: {}", e)), ()));
                                 }
                             }
                         }

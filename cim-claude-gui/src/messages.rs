@@ -4,13 +4,7 @@
  */
 
 #[cfg(feature = "cim-claude-adapter")]
-use cim_claude_adapter::{
-    domain::{
-        ConversationAggregate,
-        EventEnvelope,
-    },
-    CimExpertTopic,
-};
+use cim_claude_adapter;
 
 #[cfg(not(feature = "cim-claude-adapter"))]
 use crate::wasm_types::{
@@ -48,10 +42,8 @@ pub enum Message {
         reason: String,
     },
     
-    // Event Handling (from NATS)
-    EventReceived(EventEnvelope),
-    ConversationEvent(EventEnvelope),
-    ConversationUpdated(ConversationAggregate),
+    // Event Handling (simplified)
+    ConversationUpdated(cim_claude_adapter::domain::ConversationContext),
     CommandSent,
     
     // UI State Changes
@@ -66,18 +58,29 @@ pub enum Message {
     HealthCheckReceived(HealthStatus),
     MetricsReceived(SystemMetrics),
     
-    // CIM Expert Messages
+    // Legacy CIM Expert Messages (deprecated - use SAGE instead)
     CimExpertTabSelected,
     CimExpertStartConversation,
     CimExpertSendMessage(String),
     CimExpertMessageInputChanged(String),
-    CimExpertTopicSelected(CimExpertTopic),
+    CimExpertTopicSelected(String), // Simplified - topic as string
     CimExpertContextChanged(String),
     CimExpertConversationReceived(CimExpertConversation),
     CimExpertResponseReceived(String, String), // message_id, response
     
     // Theme Management
     ThemeToggled,
+    
+    // SAGE Orchestrator Messages
+    SageRequestSent(String), // request_id
+    SageResponseReceived(crate::sage_client::SageResponse),
+    SageStatusRequested,
+    SageStatusReceived(crate::sage_client::SageStatus),
+    SageQueryInputChanged(String),
+    SageExpertSelected(Option<String>),
+    SageSendQuery,
+    SageClearConversation,
+    SageNewSession,
     
     // Error Handling
     Error(String),
@@ -92,7 +95,7 @@ pub enum Tab {
     Conversations,
     Events,
     Monitoring,
-    CimExpert,
+    Sage,
     Settings,
 }
 
@@ -142,7 +145,7 @@ pub struct CimExpertMessage {
     pub role: CimExpertMessageRole,
     pub content: String,
     pub timestamp: chrono::DateTime<chrono::Utc>,
-    pub topic: Option<CimExpertTopic>,
+    pub topic: Option<String>, // Simplified - topic as string
 }
 
 /// Role of a message in CIM Expert conversation

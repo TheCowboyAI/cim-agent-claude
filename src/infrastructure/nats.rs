@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 use async_nats::{Client, jetstream};
-use tracing::{info, error};
+use tracing::info;
 
 use super::config::NatsConfig;
 

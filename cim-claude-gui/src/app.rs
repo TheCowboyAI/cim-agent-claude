@@ -9,18 +9,18 @@ use iced::{
 };
 use std::collections::HashMap;
 
-// Use modern theme system for beautiful styling
+// Use beautiful Modern theme system
 use iced::Theme;
 use iced_modern_theme::Modern;
 
 use cim_claude_adapter::{
-    domain::{commands::Command as DomainCommand, events::EventEnvelope, value_objects::{SessionId, CorrelationId, ConversationContext}, ConversationAggregate},
+    domain::ConversationContext,
 };
 use crate::{
-    messages::{Message, Tab, HealthStatus, SystemMetrics, CimExpertConversation, CimExpertMessage, CimExpertMessageRole},
-    nats_client::{commands, nats_subscription},
+    messages::{Message, Tab, HealthStatus, SystemMetrics},
+    nats_client::nats_subscription,
+    sage_client,
 };
-use cim_claude_adapter::CimExpertTopic;
 
 /// Main CIM Manager Application State - Pure UI State Only
 pub struct CimManagerApp {
@@ -40,17 +40,17 @@ pub struct CimManagerApp {
     theme: Theme,
     dark_mode: bool,
     
-    // Domain State
-    conversations: HashMap<String, ConversationAggregate>,
-    recent_events: Vec<EventEnvelope>,
+    // Domain State (simplified)
+    conversations: HashMap<String, ConversationContext>,
     health_status: HealthStatus,
     system_metrics: SystemMetrics,
     
-    // CIM Expert State
-    cim_expert_conversation: Option<CimExpertConversation>,
-    cim_expert_message_input: String,
-    cim_expert_context_input: String,
-    cim_expert_selected_topic: CimExpertTopic,
+    // SAGE Orchestrator State (replaces CIM Expert)
+    sage_client: crate::sage_client::SageClient,
+    sage_query_input: String,
+    sage_selected_expert: Option<String>,
+    sage_status: Option<crate::sage_client::SageStatus>,
+    sage_responses: Vec<crate::sage_client::SageResponse>,
 }
 
 impl CimManagerApp {
@@ -63,7 +63,7 @@ impl CimManagerApp {
             
             current_tab: Tab::Dashboard,
             prompt_input: String::new(),
-            session_id_input: SessionId::new().as_uuid().to_string(),
+            session_id_input: uuid::Uuid::new_v4().to_string(),
             selected_conversation: None,
             error_message: None,
             
@@ -71,15 +71,15 @@ impl CimManagerApp {
             dark_mode: false,
             
             conversations: HashMap::new(),
-            recent_events: Vec::new(),
             health_status: HealthStatus::default(),
             system_metrics: SystemMetrics::default(),
             
-            // CIM Expert initialization
-            cim_expert_conversation: None,
-            cim_expert_message_input: String::new(),
-            cim_expert_context_input: String::new(),
-            cim_expert_selected_topic: CimExpertTopic::Architecture,
+            // SAGE initialization  
+            sage_client: crate::sage_client::SageClient::new(),
+            sage_query_input: String::new(),
+            sage_selected_expert: None,
+            sage_status: None,
+            sage_responses: Vec::new(),
         };
         
         // NATS already connected at startup
@@ -91,7 +91,11 @@ impl CimManagerApp {
     }
     
     pub fn theme(&self) -> Theme {
-        self.theme.clone()
+        if self.dark_mode {
+            Theme::Dark
+        } else {
+            Theme::Light
+        }
     }
     
     pub fn subscription(&self) -> iced::Subscription<Message> {
@@ -124,37 +128,11 @@ impl CimManagerApp {
             
             Message::StartConversation { session_id, initial_prompt } => {
                 if self.connected {
-                    let session_id = match uuid::Uuid::parse_str(&session_id) {
-                        Ok(uuid) => SessionId::from_uuid(uuid),
-                        Err(_) => {
-                            self.error_message = Some("Invalid session ID format".to_string());
-                            return Task::none();
-                        }
-                    };
-                    
-                    let prompt = match cim_claude_adapter::domain::value_objects::Prompt::new(initial_prompt) {
-                        Ok(p) => p,
-                        Err(e) => {
-                            self.error_message = Some(format!("Invalid prompt: {}", e));
-                            return Task::none();
-                        }
-                    };
-                    
-                    let correlation_id = CorrelationId::new();
-                    let command = DomainCommand::StartConversation {
-                        session_id: session_id.clone(),
-                        initial_prompt: prompt,
-                        context: ConversationContext::default(),
-                        correlation_id: correlation_id.clone(),
-                    };
-                    
-                    let command_envelope = command.with_metadata(correlation_id);
-                    
-                    // Pure TEA: return Command for async operation
-                    Task::perform(
-                        commands::publish_command(command_envelope),
-                        |message| message
-                    )
+                    // Create simple conversation context
+                    let conversation = ConversationContext::new(session_id.clone());
+                    self.conversations.insert(session_id, conversation);
+                    self.selected_conversation = Some(initial_prompt);
+                    Task::none()
                 } else {
                     self.error_message = Some("Not connected to NATS".to_string());
                     Task::none()
@@ -171,27 +149,7 @@ impl CimManagerApp {
                 }
             }
             
-            Message::EventReceived(event_envelope) => {
-                // Update local state based on received events
-                self.recent_events.insert(0, event_envelope.clone());
-                if self.recent_events.len() > 100 {
-                    self.recent_events.truncate(100);
-                }
-                
-                // Update conversation state if needed
-                // Note: Event handling can be extended here based on specific event types
-                
-                Task::none()
-            }
-            
-            Message::ConversationEvent(event_envelope) => {
-                // Legacy compatibility - redirect to EventReceived
-                self.recent_events.insert(0, event_envelope.clone());
-                if self.recent_events.len() > 100 {
-                    self.recent_events.truncate(100);
-                }
-                Task::none()
-            }
+            // Legacy event handlers (removed - events simplified)
             
             Message::CommandSent => {
                 // Command was successfully sent
@@ -204,9 +162,8 @@ impl CimManagerApp {
                 Task::none()
             }
             
-            Message::ConversationUpdated(aggregate) => {
-                let conversation_id = aggregate.session_id().as_uuid().to_string();
-                self.conversations.insert(conversation_id, aggregate);
+            Message::ConversationUpdated(context) => {
+                self.conversations.insert(context.id.clone(), context);
                 Task::none()
             }
             
@@ -255,51 +212,66 @@ impl CimManagerApp {
                 Task::none()
             }
             
-            // CIM Expert message handling
-            Message::CimExpertTabSelected => {
-                self.current_tab = Tab::CimExpert;
+            // Legacy CIM Expert messages (deprecated - functionality moved to SAGE)
+            Message::CimExpertTabSelected => Task::none(),
+            Message::CimExpertStartConversation => Task::none(),
+            Message::CimExpertSendMessage(_) => Task::none(),
+            Message::CimExpertMessageInputChanged(_) => Task::none(),
+            Message::CimExpertTopicSelected(_) => Task::none(),
+            Message::CimExpertContextChanged(_) => Task::none(),
+            Message::CimExpertConversationReceived(_) => Task::none(),
+            Message::CimExpertResponseReceived(_, _) => Task::none(),
+            
+            // SAGE Orchestrator message handling (replaces CIM Expert)
+            Message::SageQueryInputChanged(input) => {
+                self.sage_query_input = input;
                 Task::none()
             }
             
-            Message::CimExpertStartConversation => {
-                self.cim_expert_start_conversation()
-            }
-            
-            Message::CimExpertSendMessage(message) => {
-                self.cim_expert_send_message(message)
-            }
-            
-            Message::CimExpertMessageInputChanged(input) => {
-                self.cim_expert_message_input = input;
+            Message::SageExpertSelected(expert) => {
+                self.sage_selected_expert = expert;
                 Task::none()
             }
             
-            Message::CimExpertTopicSelected(topic) => {
-                self.cim_expert_selected_topic = topic;
+            Message::SageSendQuery => {
+                let request = if let Some(ref expert) = self.sage_selected_expert {
+                    self.sage_client.create_expert_request(self.sage_query_input.clone(), expert.clone())
+                } else {
+                    self.sage_client.create_request(self.sage_query_input.clone())
+                };
+                Task::perform(sage_client::nats_commands::send_sage_request(request), |msg| msg)
+            }
+            
+            Message::SageRequestSent(request_id) => {
+                tracing::info!("SAGE request sent: {}", request_id);
                 Task::none()
             }
             
-            Message::CimExpertContextChanged(context) => {
-                self.cim_expert_context_input = context;
+            Message::SageResponseReceived(response) => {
+                self.sage_client.update_with_response(&response);
+                self.sage_responses.push(response);
                 Task::none()
             }
             
-            Message::CimExpertConversationReceived(conversation) => {
-                self.cim_expert_conversation = Some(conversation);
+            Message::SageStatusRequested => {
+                Task::perform(sage_client::nats_commands::request_sage_status(), |msg| msg)
+            }
+            
+            Message::SageStatusReceived(status) => {
+                self.sage_status = Some(status);
                 Task::none()
             }
             
-            Message::CimExpertResponseReceived(_message_id, response) => {
-                if let Some(ref mut conversation) = self.cim_expert_conversation {
-                    conversation.messages.push(CimExpertMessage {
-                        id: uuid::Uuid::new_v4().to_string(),
-                        role: CimExpertMessageRole::Expert,
-                        content: response,
-                        timestamp: chrono::Utc::now(),
-                        topic: Some(self.cim_expert_selected_topic.clone()),
-                    });
-                    conversation.last_activity = chrono::Utc::now();
-                }
+            Message::SageClearConversation => {
+                self.sage_client.clear_conversation();
+                self.sage_responses.clear();
+                Task::none()
+            }
+            
+            Message::SageNewSession => {
+                self.sage_client.new_session();
+                self.sage_responses.clear();
+                self.sage_status = None;
                 Task::none()
             }
             
@@ -336,13 +308,11 @@ impl CimManagerApp {
                         text(format!("⚠️ Error: {}", error)).size(14),
                         Space::with_width(Length::Fill),
                         button("✕")
-                            .on_press(Message::ErrorDismissed)
-                            .style(Modern::secondary_button()),
+                            .on_press(Message::ErrorDismissed),
                     ]
                     .align_y(iced::alignment::Vertical::Center)
                 )
                 .padding(12)
-                .style(Modern::card_container())
                 .into()
             );
         }
@@ -357,7 +327,6 @@ impl CimManagerApp {
         container(content)
             .width(Length::Fill)
             .height(Length::Fill)
-            .style(Modern::floating_container())
             .into()
     }
 }
@@ -371,7 +340,7 @@ impl CimManagerApp {
             Space::with_width(Length::Fill),
             button(text(theme_icon).size(20))
                 .on_press(Message::ThemeToggled)
-                .style(Modern::blue_tinted_button()),
+                .style(Modern::secondary_button()),
             Space::with_width(16),
             self.view_connection_controls(),
         ]
@@ -381,7 +350,7 @@ impl CimManagerApp {
         container(header_content)
             .padding(Padding::from([16, 24]))
             .width(Length::Fill)
-            .style(Modern::card_container())
+            
             .into()
     }
     
@@ -395,11 +364,11 @@ impl CimManagerApp {
         let connect_button = if self.connected {
             button(text("Disconnect"))
                 .on_press(Message::Disconnected)
-                .style(Modern::secondary_button())
+                .style(iced::widget::button::danger)
         } else {
             button(text("Connect"))
                 .on_press(Message::Connect(self.nats_url.clone()))
-                .style(Modern::primary_button())
+                .style(iced::widget::button::success)
         };
         
         container(row![
@@ -412,7 +381,7 @@ impl CimManagerApp {
         .spacing(12)
         .align_y(iced::alignment::Vertical::Center))
         .padding(Padding::from([8, 12]))
-        .style(Modern::card_container())
+        .style(iced::widget::container::bordered_box)
         .into()
     }
     
@@ -421,56 +390,56 @@ impl CimManagerApp {
             if self.current_tab == Tab::Dashboard {
                 button("Dashboard")
                     .on_press(Message::TabSelected(Tab::Dashboard))
-                    .style(Modern::primary_button())
+                    
             } else {
                 button("Dashboard")
                     .on_press(Message::TabSelected(Tab::Dashboard))
-                    .style(Modern::blue_tinted_button())
+                    
             },
             if self.current_tab == Tab::Conversations {
                 button("Conversations")
                     .on_press(Message::TabSelected(Tab::Conversations))
-                    .style(Modern::primary_button())
+                    
             } else {
                 button("Conversations")
                     .on_press(Message::TabSelected(Tab::Conversations))
-                    .style(Modern::blue_tinted_button())
+                    
             },
             if self.current_tab == Tab::Events {
                 button("Events")
                     .on_press(Message::TabSelected(Tab::Events))
-                    .style(Modern::primary_button())
+                    
             } else {
                 button("Events")
                     .on_press(Message::TabSelected(Tab::Events))
-                    .style(Modern::blue_tinted_button())
+                    
             },
             if self.current_tab == Tab::Monitoring {
                 button("Monitoring")
                     .on_press(Message::TabSelected(Tab::Monitoring))
-                    .style(Modern::primary_button())
+                    
             } else {
                 button("Monitoring")
                     .on_press(Message::TabSelected(Tab::Monitoring))
-                    .style(Modern::blue_tinted_button())
+                    
             },
-            if self.current_tab == Tab::CimExpert {
-                button("CIM Expert")
-                    .on_press(Message::TabSelected(Tab::CimExpert))
-                    .style(Modern::primary_button())
+            if self.current_tab == Tab::Sage {
+                button("SAGE")
+                    .on_press(Message::TabSelected(Tab::Sage))
+                    
             } else {
-                button("CIM Expert")
-                    .on_press(Message::TabSelected(Tab::CimExpert))
-                    .style(Modern::blue_tinted_button())
+                button("SAGE")
+                    .on_press(Message::TabSelected(Tab::Sage))
+                    
             },
             if self.current_tab == Tab::Settings {
                 button("Settings")
                     .on_press(Message::TabSelected(Tab::Settings))
-                    .style(Modern::primary_button())
+                    
             } else {
                 button("Settings")
                     .on_press(Message::TabSelected(Tab::Settings))
-                    .style(Modern::blue_tinted_button())
+                    
             },
         ]
         .spacing(12)
@@ -483,7 +452,7 @@ impl CimManagerApp {
             Tab::Conversations => self.view_conversations(),
             Tab::Events => self.view_events(),
             Tab::Monitoring => self.view_monitoring(),
-            Tab::CimExpert => self.view_cim_expert(),
+            Tab::Sage => self.view_sage(),
             Tab::Settings => self.view_settings(),
         }
     }
@@ -513,13 +482,13 @@ impl CimManagerApp {
                             session_id: self.session_id_input.clone(),
                             initial_prompt: self.prompt_input.clone(),
                         })
-                        .style(Modern::primary_button()),
+                        .style(iced::widget::button::primary),
                     button("📊 Refresh Health")
                         .on_press(Message::HealthCheckRequested)
-                        .style(Modern::secondary_button()),
+                        .style(iced::widget::button::secondary),
                     button("🔄 Reconnect NATS")
                         .on_press(Message::Connect(self.nats_url.clone()))
-                        .style(Modern::secondary_button()),
+                        .style(iced::widget::button::secondary),
                 ]
                 .spacing(5)
                 .width(Length::FillPortion(1)),
@@ -534,7 +503,7 @@ impl CimManagerApp {
         let conversations: Vec<Element<Message>> = self.conversations
             .iter()
             .map(|(id, aggregate)| {
-                button(text(format!("{} - {:?}", id, aggregate.state())))
+                button(text(format!("{} - {} messages", id, aggregate.messages.len())))
                     .on_press(Message::ConversationSelected(id.clone()))
                     .width(Length::Fill)
                     .into()
@@ -550,26 +519,14 @@ impl CimManagerApp {
     }
     
     fn view_events(&self) -> Element<'_, Message> {
-        let events: Vec<Element<Message>> = self.recent_events
-            .iter()
-            .take(20)
-            .map(|event_envelope| {
-                text(format!(
-                    "[{}] {:?} - {}",
-                    event_envelope.timestamp.format("%H:%M:%S"),
-                    event_envelope.event.event_type(),
-                    event_envelope.correlation_id.as_uuid()
-                ))
-                .size(12)
-                .into()
-            })
-            .collect();
-        
+        // Simplified events view - complex event system removed
         column![
-            text("Recent Events").size(20),
-            column(events).spacing(2),
+            text("Events").size(24),
+            text("Event tracking has been simplified."),
+            text("SAGE orchestrator handles complex event processing."),
+            text("Use the SAGE tab for detailed interactions."),
         ]
-        .spacing(10)
+        .spacing(20)
         .into()
     }
     
@@ -600,131 +557,111 @@ impl CimManagerApp {
         .into()
     }
     
-    fn view_cim_expert(&self) -> Element<'_, Message> {
-        let topic_text = format!("{:?}", self.cim_expert_selected_topic);
+    
+    fn view_sage(&self) -> Element<'_, Message> {
+        use iced::widget::scrollable;
         
-        if let Some(ref conversation) = self.cim_expert_conversation {
-            // Show existing conversation
-            let messages_view = conversation.messages.iter().enumerate().fold(
-                column![],
-                |col, (_i, msg)| {
-                    let role_text = match msg.role {
-                        CimExpertMessageRole::User => "You",
-                        CimExpertMessageRole::Expert => "CIM Expert",
-                        CimExpertMessageRole::System => "System",
-                    };
-                    
-                    col.push(
+        let mut content_items = Vec::new();
+        
+        // SAGE Header
+        content_items.push(row![
+            text("🎭 SAGE Orchestrator").size(24),
+            Space::with_width(Length::Fill),
+            button("Clear Conversation")
+                .on_press(Message::SageClearConversation)
+                .style(Modern::secondary_button()),
+            button("New Session")
+                .on_press(Message::SageNewSession)  
+                .style(Modern::primary_button()),
+            button("Status")
+                .on_press(Message::SageStatusRequested)
+                .style(Modern::secondary_button()),
+        ].spacing(10).into());
+        
+        // Status Display
+        if let Some(ref status) = self.sage_status {
+            content_items.push(column![
+                text(format!("🧠 Consciousness: {} (Level {:.1})", 
+                    if status.is_conscious { "Active" } else { "Inactive" },
+                    status.consciousness_level
+                )),
+                text(format!("👥 Available Experts: {} | 📊 Orchestrations: {}", 
+                    status.available_agents, status.total_orchestrations
+                )),
+                text(format!("🧬 Patterns Learned: {} | 💾 Memory: {}", 
+                    status.patterns_learned, status.memory_health
+                )),
+            ].spacing(5).into());
+        } else {
+            content_items.push(text("Status: Disconnected from SAGE").into());
+        }
+        
+        // Expert Selection - simplified for now
+        content_items.push(row![
+            text("Expert:"),
+            text_input("Expert name (optional)", self.sage_selected_expert.as_ref().unwrap_or(&String::new()))
+                .on_input(|expert| Message::SageExpertSelected(Some(expert))),
+            text("Auto-route to appropriate expert").size(12),
+        ].spacing(10).into());
+        
+        // Query Input
+        content_items.push(row![
+            text_input("Ask SAGE anything...", &self.sage_query_input)
+                .on_input(Message::SageQueryInputChanged)
+                .on_submit(Message::SageSendQuery),
+            button("Send")
+                .on_press(Message::SageSendQuery)
+                .style(Modern::primary_button()),
+        ].spacing(10).into());
+        
+        // Conversation History
+        content_items.push(scrollable(
+            column(
+                self.sage_responses.iter().enumerate().map(|(i, response)| {
+                    column![
+                        // Query (reconstruct from context)
+                        container(
+                            text(format!("You ({})", i + 1)).size(14)
+                        ).padding(5),
+                        
+                        // SAGE Response
                         container(
                             column![
-                                text(format!("{}: {}", role_text, msg.timestamp.format("%H:%M:%S"))).size(12),
-                                text(&msg.content).size(14),
+                                row![
+                                    text("🎭 SAGE").size(14),
+                                    Space::with_width(Length::Fill),
+                                    text(format!("Experts: {:?}", response.expert_agents_used)).size(10),
+                                    text(format!("Confidence: {:.0}%", response.confidence_score * 100.0)).size(10),
+                                ].spacing(5),
+                                
+                                text(&response.response).size(12),
+                                    
+                                text(format!("🕒 Session: {}", response.updated_context.session_id.as_ref().unwrap_or(&"Unknown".to_string()))).size(10),
                             ].spacing(5)
-                        )
-                        .padding(10)
-                    )
-                }
-            );
-            
-            column![
-                text("CIM Expert - Conversation").size(20),
-                
-                // Topic selector
-                row![
-                    text("Topic:"),
-                    button(text(topic_text.clone()))
-                        .on_press(Message::CimExpertTopicSelected(
-                            match self.cim_expert_selected_topic {
-                                CimExpertTopic::Architecture => CimExpertTopic::MathematicalFoundations,
-                                CimExpertTopic::MathematicalFoundations => CimExpertTopic::NatsPatterns,
-                                CimExpertTopic::NatsPatterns => CimExpertTopic::EventSourcing,
-                                CimExpertTopic::EventSourcing => CimExpertTopic::DomainModeling,
-                                CimExpertTopic::DomainModeling => CimExpertTopic::Implementation,
-                                CimExpertTopic::Implementation => CimExpertTopic::Troubleshooting,
-                                CimExpertTopic::Troubleshooting => CimExpertTopic::Architecture,
-                                _ => CimExpertTopic::Architecture,
-                            }
-                        )),
-                ].spacing(10),
-                
-                // Messages area
-                container(messages_view).height(Length::Fixed(400.0)),
-                
-                // Message input
-                row![
-                    text_input("Ask the CIM Expert...", &self.cim_expert_message_input)
-                        .on_input(Message::CimExpertMessageInputChanged)
-                        .on_submit(Message::CimExpertSendMessage(self.cim_expert_message_input.clone())),
-                    button("Send")
-                        .on_press(Message::CimExpertSendMessage(self.cim_expert_message_input.clone())),
-                ].spacing(10),
-                
-                button("End Conversation")
-                    .on_press(Message::CimExpertConversationReceived(
-                        CimExpertConversation {
-                            id: "".to_string(),
-                            created_at: chrono::Utc::now(),
-                            last_activity: chrono::Utc::now(),
-                            messages: vec![],
-                            context: None,
-                            user_id: None,
-                        }
-                    )),
-            ]
-            .spacing(15)
-            .into()
+                        ).padding(10),
+                        
+                        Space::with_height(10),
+                    ].into()
+                }).collect::<Vec<_>>()
+            ).spacing(5)
+        ).height(Length::Fill).into());
+        
+        // Conversation Summary
+        if !self.sage_responses.is_empty() {
+            content_items.push(container(
+                text(self.sage_client.get_conversation_summary()).size(11)
+            ).padding(10).into());
         } else {
-            // Show conversation starter
-            column![
-                text("CIM Expert").size(24),
-                text("Start a conversation with the CIM Expert to learn about CIM's cognitive architecture, mathematical foundations, and implementation patterns.").size(14),
-                
-                // Context input
-                column![
-                    text("Context (optional):"),
-                    text_input("Enter domain context for your questions...", &self.cim_expert_context_input)
-                        .on_input(Message::CimExpertContextChanged),
-                ].spacing(5),
-                
-                // Topic selector
-                column![
-                    text("Initial Topic:"),
-                    row![
-                        button(text(topic_text.clone()))
-                            .on_press(Message::CimExpertTopicSelected(
-                                match self.cim_expert_selected_topic {
-                                    CimExpertTopic::Architecture => CimExpertTopic::MathematicalFoundations,
-                                    CimExpertTopic::MathematicalFoundations => CimExpertTopic::NatsPatterns,
-                                    CimExpertTopic::NatsPatterns => CimExpertTopic::EventSourcing,
-                                    CimExpertTopic::EventSourcing => CimExpertTopic::DomainModeling,
-                                    CimExpertTopic::DomainModeling => CimExpertTopic::Implementation,
-                                    CimExpertTopic::Implementation => CimExpertTopic::Troubleshooting,
-                                    CimExpertTopic::Troubleshooting => CimExpertTopic::Architecture,
-                                    _ => CimExpertTopic::Architecture,
-                                }
-                            )),
-                        text("(click to cycle through topics)"),
-                    ].spacing(10),
-                ].spacing(5),
-                
-                button("Start Conversation")
-                    .on_press(Message::CimExpertStartConversation),
-                    
-                // Available topics list
-                column![
-                    text("Available Topics:"),
-                    text("• Architecture - CIM system design and structure"),
-                    text("• Mathematical Foundations - Category Theory, Graph Theory"),
-                    text("• NATS Patterns - Event streaming and messaging"),
-                    text("• Event Sourcing - Immutable event-driven systems"),
-                    text("• Domain Modeling - DDD and aggregate design"),
-                    text("• Implementation - Practical development guidance"),
-                    text("• Troubleshooting - Problem solving and debugging"),
-                ].spacing(5),
-            ]
-            .spacing(20)
-            .into()
+            content_items.push(text("Start a conversation with SAGE by typing your question above.").size(12).into());
         }
+        
+        let content = column(content_items).spacing(15).padding(20);
+        
+        container(content)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            
+            .into()
     }
     
     fn view_status_bar(&self) -> Element<'_, Message> {
@@ -756,91 +693,7 @@ impl CimManagerApp {
         }
     }
     
-    // CIM Expert helper methods
-    fn cim_expert_start_conversation(&mut self) -> Task<Message> {
-        let conversation_id = uuid::Uuid::new_v4().to_string();
-        let now = chrono::Utc::now();
-        
-        let conversation = CimExpertConversation {
-            id: conversation_id.clone(),
-            created_at: now,
-            last_activity: now,
-            messages: vec![
-                CimExpertMessage {
-                    id: uuid::Uuid::new_v4().to_string(),
-                    role: CimExpertMessageRole::System,
-                    content: "Welcome to CIM Expert! I'm here to help you understand CIM's cognitive architecture - including Conceptual Spaces, memory engram patterns, graph-based workflows, and emergent intelligence. What would you like to explore?".to_string(),
-                    timestamp: now,
-                    topic: None,
-                }
-            ],
-            context: if self.cim_expert_context_input.is_empty() { 
-                None 
-            } else { 
-                Some(self.cim_expert_context_input.clone()) 
-            },
-            user_id: None,
-        };
-        
-        self.cim_expert_conversation = Some(conversation);
-        self.cim_expert_context_input.clear();
-        
-        Task::none()
-    }
-    
-    fn cim_expert_send_message(&mut self, message: String) -> Task<Message> {
-        if let Some(ref mut conversation) = self.cim_expert_conversation {
-            // Add user message
-            conversation.messages.push(CimExpertMessage {
-                id: uuid::Uuid::new_v4().to_string(),
-                role: CimExpertMessageRole::User,
-                content: message.clone(),
-                timestamp: chrono::Utc::now(),
-                topic: Some(self.cim_expert_selected_topic.clone()),
-            });
-            
-            // Clear input
-            self.cim_expert_message_input.clear();
-            
-            // Simulate expert response (in a real implementation, this would call the CimExpertService)
-            let response_id = uuid::Uuid::new_v4().to_string();
-            let mock_response = self.generate_mock_expert_response(&message);
-            
-            Task::perform(
-                async move {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-                    (response_id, mock_response)
-                },
-                |(msg_id, response)| Message::CimExpertResponseReceived(msg_id, response)
-            )
-        } else {
-            Task::none()
-        }
-    }
-    
-    fn generate_mock_expert_response(&self, user_message: &str) -> String {
-        // This is a mock response generator - in real implementation, this would use CimExpertService
-        match self.cim_expert_selected_topic {
-            CimExpertTopic::Architecture => {
-                format!("Regarding CIM architecture and your question about '{}': CIM is built on a foundation of Category Theory and Graph Theory, enabling composable information processing through structure-preserving mappings and type-safe transformations.", user_message)
-            },
-            CimExpertTopic::MathematicalFoundations => {
-                format!("From a mathematical perspective on '{}': CIM leverages Category Theory for composable transformations, Topology for continuous mappings, and Information Theory for optimal encoding strategies.", user_message)
-            },
-            CimExpertTopic::NatsPatterns => {
-                format!("Regarding NATS patterns and '{}': CIM uses NATS JetStream for persistent event sourcing, with subject hierarchies that mirror domain boundaries and enable efficient message routing.", user_message)
-            },
-            CimExpertTopic::EventSourcing => {
-                format!("On event sourcing and '{}': CIM treats all state changes as immutable events, enabling perfect audit trails, time-travel debugging, and deterministic replay of system state.", user_message)
-            },
-            CimExpertTopic::DomainModeling => {
-                format!("For domain modeling with '{}': CIM uses DDD principles with event-driven aggregates, ensuring each domain maintains clear boundaries while enabling cross-domain communication through well-defined interfaces.", user_message)
-            },
-            _ => {
-                format!("Thank you for your question about '{}'. This is a complex topic that touches on CIM's cognitive architecture. Let me explain the key concepts and how they relate to your inquiry...", user_message)
-            }
-        }
-    }
+    // Legacy CIM Expert helper methods (removed - functionality replaced by SAGE)
 }
 
 impl Default for CimManagerApp {

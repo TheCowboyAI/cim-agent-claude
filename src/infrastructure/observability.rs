@@ -6,7 +6,7 @@
 //! Observability Infrastructure Module
 
 use std::sync::Arc;
-use tracing::{info, error};
+use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use super::config::ObservabilityConfig;
@@ -68,7 +68,7 @@ impl ObservabilityInfrastructure {
         Ok(())
     }
     
-    async fn setup_tracing(config: &ObservabilityConfig) -> Result<(), Box<dyn std::error::Error>> {
+    async fn setup_tracing(_config: &ObservabilityConfig) -> Result<(), Box<dyn std::error::Error>> {
         info!("Distributed tracing enabled");
         
         // TODO: Initialize distributed tracing

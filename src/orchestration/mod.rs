@@ -11,7 +11,7 @@
 use std::sync::Arc;
 use std::collections::HashMap;
 use tokio::time::{interval, Duration};
-use tracing::{info, warn, error};
+use tracing::{info, warn};
 
 use crate::composition::composer::{CimModule, ModuleHealth};
 use crate::infrastructure::{NatsInfrastructure, Config};
@@ -46,8 +46,8 @@ impl ServiceOrchestrator {
             info!("Initializing module: {}", module.id());
             
             // Clone the module and initialize it
-            let mut module_clone = Arc::clone(module);
-            let infrastructure = self.nats_infrastructure.clone();
+            let _module_clone = Arc::clone(module);
+            let _infrastructure = self.nats_infrastructure.clone();
             
             // This is a workaround - we need mutable access but Arc doesn't allow it
             // In practice, each module would handle its own initialization state
