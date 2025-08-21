@@ -45,15 +45,11 @@
           
           src = pkgs.lib.cleanSource ./.;
           
-          cargoLock = {
-            lockFile = ./Cargo.lock;
-            outputHashes = {
-              "cim-component-0.3.0" = "sha256-5HhzcP8O/lJqzw9IyNLN4Zk1fPVRvETDYYYHH35k8Ms=";
-              "cim-domain-0.5.0" = "sha256-YcokH8rCKxtUcSqVYeMoFZhR1voj7iIjpYb6h39W2D8=";
-              "cim-graph-0.1.0" = "sha256-FA0o926jzbGlrFSYrl99Y1H+v0QOj/yICaagoDCLeuY=";
-              "cim-ipld-0.5.0" = "sha256-Yc2cczSARqegmei6V5+C8ChE/rg89fjHai3npc+PXwk=";
-              "cim-subject-0.5.0" = "sha256-Kdtyv3hhBoeA+RmQ0ZLHwhWn/rfC0wBB+A5iO3ONEHo=";
-            };
+          # Use fetchCargoVendor to pre-fetch all dependencies
+          cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
+            inherit src;
+            name = "${pname}-${version}";
+            hash = "sha256-BJ+mORRT1J+VHQV6u4UPcvHMuAyfKiT1mvlulHzJ9kA=";
           };
           
           buildInputs = commonBuildInputs;
@@ -77,15 +73,11 @@
           
           src = pkgs.lib.cleanSource ./.;
           
-          cargoLock = {
-            lockFile = ./Cargo.lock;
-            outputHashes = {
-              "cim-component-0.3.0" = "sha256-5HhzcP8O/lJqzw9IyNLN4Zk1fPVRvETDYYYHH35k8Ms=";
-              "cim-domain-0.5.0" = "sha256-YcokH8rCKxtUcSqVYeMoFZhR1voj7iIjpYb6h39W2D8=";
-              "cim-graph-0.1.0" = "sha256-FA0o926jzbGlrFSYrl99Y1H+v0QOj/yICaagoDCLeuY=";
-              "cim-ipld-0.5.0" = "sha256-Yc2cczSARqegmei6V5+C8ChE/rg89fjHai3npc+PXwk=";
-              "cim-subject-0.5.0" = "sha256-Kdtyv3hhBoeA+RmQ0ZLHwhWn/rfC0wBB+A5iO3ONEHo=";
-            };
+          # Use fetchCargoVendor to pre-fetch all dependencies
+          cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
+            inherit src;
+            name = "${pname}-${version}";
+            hash = "sha256-BJ+mORRT1J+VHQV6u4UPcvHMuAyfKiT1mvlulHzJ9kA=";
           };
           
           buildInputs = commonBuildInputs ++ (with pkgs; [
@@ -206,15 +198,11 @@ EOF
           
           src = pkgs.lib.cleanSource ./.;
           
-          cargoLock = {
-            lockFile = ./Cargo.lock;
-            outputHashes = {
-              "cim-component-0.3.0" = "sha256-5HhzcP8O/lJqzw9IyNLN4Zk1fPVRvETDYYYHH35k8Ms=";
-              "cim-domain-0.5.0" = "sha256-YcokH8rCKxtUcSqVYeMoFZhR1voj7iIjpYb6h39W2D8=";
-              "cim-graph-0.1.0" = "sha256-FA0o926jzbGlrFSYrl99Y1H+v0QOj/yICaagoDCLeuY=";
-              "cim-ipld-0.5.0" = "sha256-Yc2cczSARqegmei6V5+C8ChE/rg89fjHai3npc+PXwk=";
-              "cim-subject-0.5.0" = "sha256-Kdtyv3hhBoeA+RmQ0ZLHwhWn/rfC0wBB+A5iO3ONEHo=";
-            };
+          # Use fetchCargoVendor to pre-fetch all dependencies
+          cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
+            inherit src;
+            name = "${pname}-${version}";
+            hash = "sha256-BJ+mORRT1J+VHQV6u4UPcvHMuAyfKiT1mvlulHzJ9kA=";
           };
           
           buildInputs = commonBuildInputs;
