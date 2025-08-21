@@ -359,6 +359,7 @@ EOF
         cim-claude-adapter = self.packages.${final.system}.cim-claude-adapter;
         cim-claude-gui = self.packages.${final.system}.cim-claude-gui;
         cim-claude-gui-wasm = self.packages.${final.system}.cim-claude-gui-wasm;
+        cim-sage-service = self.packages.${final.system}.cim-sage-service;
       };
     };
 }
