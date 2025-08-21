@@ -864,7 +864,7 @@ dependencies = [
  "tokio-test",
  "tracing",
  "tracing-subscriber",
- "uuid",
+ "uuid 1.18.0",
  "wiremock",
 ]
 
@@ -910,7 +910,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
- "uuid",
+ "uuid 1.18.0",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-streams",
@@ -930,13 +930,13 @@ dependencies = [
  "thiserror 2.0.16",
  "tokio",
  "tracing",
- "uuid",
+ "uuid 1.18.0",
 ]
 
 [[package]]
 name = "cim-domain"
 version = "0.5.0"
-source = "git+https://github.com/thecowboyai/cim-domain.git#3836b7ef377141d80c4f39d089edc4f079b10673"
+source = "git+https://github.com/thecowboyai/cim-domain.git#bdbf42b435d82f1804dafa8925ab605ba67b9734"
 dependencies = [
  "anyhow",
  "async-nats 0.41.0",
@@ -946,17 +946,18 @@ dependencies = [
  "cid",
  "cim-component",
  "cim-ipld",
- "cim-subject 0.5.0 (git+https://github.com/TheCowboyAI/cim-subject)",
+ "cim-subject",
  "futures",
  "indexmap",
  "lru",
+ "schemars",
  "serde",
  "serde_json",
  "thiserror 2.0.16",
  "tokio",
  "tokio-stream",
  "tracing",
- "uuid",
+ "uuid 1.18.0",
 ]
 
 [[package]]
@@ -966,20 +967,20 @@ source = "git+https://github.com/thecowboyai/cim-graph.git#3168c3808fa9c33660007
 dependencies = [
  "bincode",
  "chrono",
- "cim-subject 0.5.0 (git+https://github.com/TheCowboyAI/cim-subject?tag=v0.5.0)",
+ "cim-subject",
  "petgraph",
  "rayon",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
- "uuid",
+ "uuid 1.18.0",
  "zstd",
 ]
 
 [[package]]
 name = "cim-ipld"
 version = "0.5.0"
-source = "git+https://github.com/thecowboyai/cim-ipld#e84cccd38985d1c6bd1542a6e1fedab15ddbb6c9"
+source = "git+https://github.com/TheCowboyAI/cim-ipld#e84cccd38985d1c6bd1542a6e1fedab15ddbb6c9"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -1018,22 +1019,7 @@ dependencies = [
  "thiserror 2.0.16",
  "tokio",
  "tracing",
- "uuid",
-]
-
-[[package]]
-name = "cim-subject"
-version = "0.5.0"
-source = "git+https://github.com/TheCowboyAI/cim-subject#ecf16081bc8e8906549e61497647d7a9b3cab93e"
-dependencies = [
- "cim-ipld",
- "dashmap",
- "serde",
- "serde_json",
- "thiserror 2.0.16",
- "tokio",
- "tracing",
- "uuid",
+ "uuid 1.18.0",
 ]
 
 [[package]]
@@ -1679,6 +1665,12 @@ dependencies = [
  "libc",
  "linux-raw-sys 0.6.5",
 ]
+
+[[package]]
+name = "dyn-clone"
+version = "1.0.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 
 [[package]]
 name = "ed25519"
@@ -4847,6 +4839,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "schemars"
+version = "0.8.22"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3fbf2ae1b8bc8e02df939598064d22402220cd5bbcca1c76f7d6a310974d5615"
+dependencies = [
+ "chrono",
+ "dyn-clone",
+ "schemars_derive",
+ "serde",
+ "serde_json",
+ "uuid 0.8.2",
+]
+
+[[package]]
+name = "schemars_derive"
+version = "0.8.22"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32e265784ad618884abaea0600a9adf15393368d840e0222d101a072f3f7534d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "serde_derive_internals",
+ "syn 2.0.106",
+]
+
+[[package]]
 name = "scoped-tls"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4945,6 +4963,17 @@ name = "serde_derive"
 version = "1.0.219"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b0276cf7f2c73365f7157c8123c21cd9a50fbbd844757af28ca1f5925fc2a00"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.106",
+]
+
+[[package]]
+name = "serde_derive_internals"
+version = "0.29.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18d26a20a969b9e3fdf2fc2d9f21eda6c40e2de84c9408bb5d3b05d499aae711"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6162,6 +6191,12 @@ name = "utf8parse"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
+
+[[package]]
+name = "uuid"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
 
 [[package]]
 name = "uuid"
