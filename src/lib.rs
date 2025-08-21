@@ -78,7 +78,7 @@ impl CimAgentClaude {
         let modules = composer.compose_modules().await?;
         
         // Start orchestration
-        let mut orchestrator = ServiceOrchestrator::new(modules, nats_infrastructure, self.config.clone());
+        let mut orchestrator = ServiceOrchestrator::new(modules, nats_infrastructure, _observability, self.config.clone());
         orchestrator.start().await?;
         
         self.orchestrator = Some(orchestrator);

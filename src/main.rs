@@ -56,9 +56,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("CIM modules composed: {} modules", modules.len());
     
     // Orchestrate services
-    let orchestrator = ServiceOrchestrator::new(
+    let mut orchestrator = ServiceOrchestrator::new(
         modules,
         nats_infrastructure,
+        observability,
         config,
     );
     

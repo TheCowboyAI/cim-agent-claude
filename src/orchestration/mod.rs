@@ -14,11 +14,12 @@ use tokio::time::{interval, Duration};
 use tracing::{info, warn};
 
 use crate::composition::composer::{CimModule, ModuleHealth};
-use crate::infrastructure::{NatsInfrastructure, Config};
+use crate::infrastructure::{NatsInfrastructure, ObservabilityInfrastructure, Config};
 
 pub struct ServiceOrchestrator {
     modules: Vec<Arc<dyn CimModule>>,
     nats_infrastructure: Arc<NatsInfrastructure>,
+    observability: Arc<ObservabilityInfrastructure>,
     config: Config,
     running: bool,
 }
@@ -27,11 +28,13 @@ impl ServiceOrchestrator {
     pub fn new(
         modules: Vec<Arc<dyn CimModule>>,
         nats_infrastructure: Arc<NatsInfrastructure>,
+        observability: Arc<ObservabilityInfrastructure>,
         config: Config,
     ) -> Self {
         Self {
             modules,
             nats_infrastructure,
+            observability,
             config,
             running: false,
         }
