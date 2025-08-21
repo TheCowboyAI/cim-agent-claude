@@ -15,6 +15,9 @@ pub mod dispatcher;
 pub mod expert_definitions;
 pub mod sage;
 
+#[cfg(test)]
+pub mod sage_domain_tests;
+
 pub use registry::{SubagentRegistry, SubagentInfo, SubagentCapability};
 pub use router::{SubagentRouter, SubjectResolution, ResolutionStrategy, DomainType, DomainContext};
 pub use dispatcher::{SubagentDispatcher, DispatchResult};
