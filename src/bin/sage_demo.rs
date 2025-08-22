@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 use chrono::Utc;
-use cim_domain::events::DomainEvent;
+use cim_domain::DomainEvent;
 
 // Import SAGE domain components
 use cim_agent_claude::subagents::sage::{

@@ -437,6 +437,7 @@ mod consciousness_engine {
         pub health_status: String,
     }
     
+    #[derive(Clone)]
     pub struct ConsciousnessEngine {
         nats_client: Client,
         jetstream: jetstream::Context,

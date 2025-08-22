@@ -852,6 +852,7 @@ dependencies = [
  "cim-graph",
  "clap",
  "futures",
+ "futures-util",
  "hex",
  "reqwest",
  "serde",
