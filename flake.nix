@@ -242,6 +242,11 @@ EOF
           # Disable tests due to compilation issues in test code
           doCheck = false;
           
+          # Create service-friendly symlink for systemd
+          postInstall = ''
+            ln -s $out/bin/sage-service $out/bin/sage_service
+          '';
+          
           meta = with pkgs.lib; {
             description = "SAGE - Systematic Agent Guidance Engine for CIM orchestration";
             homepage = "https://github.com/TheCowboyAI/cim-agent-claude";
