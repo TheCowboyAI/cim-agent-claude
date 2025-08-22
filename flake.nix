@@ -38,9 +38,9 @@
           rustToolchain
         ];
 
-        # CIM Claude Adapter (backend service)
-        cim-claude-adapter = pkgs.rustPlatform.buildRustPackage rec {
-          pname = "cim-claude-adapter";
+        # CIM Agent Claude (main orchestrator binary)
+        cim-agent-claude-bin = pkgs.rustPlatform.buildRustPackage rec {
+          pname = "cim-agent-claude-bin";
           version = "0.1.0";
           
           src = pkgs.lib.cleanSource ./.;
@@ -55,21 +55,20 @@
           buildInputs = commonBuildInputs;
           nativeBuildInputs = commonNativeBuildInputs;
           
-          # Build only the main cim-agent-claude binary (the adapter)
+          # Build only the main cim-agent-claude binary 
           cargoBuildOptions = [ "--bin" "cim-agent-claude" ];
           cargoTestOptions = [ "--bin" "cim-agent-claude" ];
           
           # Disable tests due to compilation issues in test code
           doCheck = false;
           
-          # Install phase to rename binary to expected name
-          installPhase = ''
-            mkdir -p $out/bin
-            cp target/release/cim-agent-claude $out/bin/cim-claude-adapter
+          # Create service-friendly symlink
+          postInstall = ''
+            ln -s $out/bin/cim-agent-claude $out/bin/cim-claude-adapter
           '';
           
           meta = with pkgs.lib; {
-            description = "Event-driven Claude AI adapter service for CIM ecosystems";
+            description = "CIM Agent Claude - NATS orchestrator with subagent coordination";
             homepage = "https://github.com/TheCowboyAI/cim-agent-claude";
             license = licenses.mit;
             maintainers = [ "Cowboy AI, LLC <info@thecowboy.ai>" ];
@@ -256,7 +255,7 @@ EOF
         cim-agent-claude = pkgs.symlinkJoin {
           name = "cim-agent-claude";
           version = "0.1.0";
-          paths = [ cim-claude-adapter cim-claude-gui cim-sage-service ];
+          paths = [ cim-agent-claude-bin cim-claude-gui cim-sage-service ];
           
           meta = with pkgs.lib; {
             description = "Complete CIM Claude Agent with SAGE orchestrator, adapter service and GUI";
@@ -272,7 +271,7 @@ EOF
         packages = {
           default = cim-agent-claude;
           cim-agent-claude = cim-agent-claude;
-          cim-claude-adapter = cim-claude-adapter;
+          cim-agent-claude-bin = cim-agent-claude-bin;
           cim-claude-gui = cim-claude-gui;
           cim-claude-gui-wasm = cim-claude-gui-wasm;
           cim-sage-service = cim-sage-service;
@@ -367,11 +366,11 @@ EOF
         # Apps
         apps = {
           default = flake-utils.lib.mkApp {
-            drv = cim-claude-adapter;
-            name = "cim-claude-adapter";
+            drv = cim-agent-claude-bin;
+            name = "cim-agent-claude";
           };
           cim-claude-adapter = flake-utils.lib.mkApp {
-            drv = cim-claude-adapter;
+            drv = cim-agent-claude-bin;
             name = "cim-claude-adapter";
           };
           cim-claude-gui = flake-utils.lib.mkApp {
@@ -386,9 +385,10 @@ EOF
         # Checks (for CI)
         checks = {
           # Build checks
-          build-adapter = cim-claude-adapter;
+          build-agent = cim-agent-claude-bin;
           build-gui = cim-claude-gui;
           build-wasm = cim-claude-gui-wasm;
+          build-sage = cim-sage-service;
         };
       }
     ) // {
@@ -399,7 +399,7 @@ EOF
       # Overlay for adding these packages to nixpkgs
       overlays.default = final: prev: {
         cim-agent-claude = self.packages.${final.system}.cim-agent-claude;
-        cim-claude-adapter = self.packages.${final.system}.cim-claude-adapter;
+        cim-agent-claude-bin = self.packages.${final.system}.cim-agent-claude-bin;
         cim-claude-gui = self.packages.${final.system}.cim-claude-gui;
         cim-claude-gui-wasm = self.packages.${final.system}.cim-claude-gui-wasm;
         cim-sage-service = self.packages.${final.system}.cim-sage-service;
