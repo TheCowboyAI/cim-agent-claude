@@ -133,19 +133,41 @@ impl CimManagerApp {
                 if self.connected {
                     // Create simple conversation context
                     let conversation = ConversationContext::new(session_id.clone());
-                    self.conversations.insert(session_id, conversation);
-                    self.selected_conversation = Some(initial_prompt);
-                    Task::none()
+                    self.conversations.insert(session_id.clone(), conversation);
+                    self.selected_conversation = Some(initial_prompt.clone());
+                    
+                    // Actually publish the conversation start to NATS
+                    let subject = format!("claude.conversation.start.{}", session_id);
+                    let message_json = serde_json::json!({
+                        "session_id": session_id,
+                        "initial_prompt": initial_prompt,
+                        "timestamp": chrono::Utc::now().to_rfc3339()
+                    }).to_string();
+                    
+                    Task::perform(
+                        crate::nats_client::commands::publish_simple_message(subject, message_json),
+                        std::convert::identity
+                    )
                 } else {
                     self.error_message = Some("Not connected to NATS".to_string());
                     Task::none()
                 }
             }
             
-            Message::SendPrompt { conversation_id: _, prompt: _ } => {
+            Message::SendPrompt { conversation_id, prompt } => {
                 if self.connected {
-                    // Implementation for sending prompts
-                    Task::none()
+                    // Actually send the prompt to NATS
+                    let subject = format!("claude.conversation.prompt.{}", conversation_id);
+                    let message_json = serde_json::json!({
+                        "conversation_id": conversation_id,
+                        "prompt": prompt,
+                        "timestamp": chrono::Utc::now().to_rfc3339()
+                    }).to_string();
+                    
+                    Task::perform(
+                        crate::nats_client::commands::publish_simple_message(subject, message_json),
+                        std::convert::identity
+                    )
                 } else {
                     self.error_message = Some("Not connected to NATS".to_string());
                     Task::none()
