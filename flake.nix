@@ -55,10 +55,18 @@
           buildInputs = commonBuildInputs;
           nativeBuildInputs = commonNativeBuildInputs;
           
-          buildAndTestSubdir = "cim-claude-adapter";
+          # Build only the main cim-agent-claude binary (the adapter)
+          cargoBuildOptions = [ "--bin" "cim-agent-claude" ];
+          cargoTestOptions = [ "--bin" "cim-agent-claude" ];
           
           # Disable tests due to compilation issues in test code
           doCheck = false;
+          
+          # Install phase to rename binary to expected name
+          installPhase = ''
+            mkdir -p $out/bin
+            cp target/release/cim-agent-claude $out/bin/cim-claude-adapter
+          '';
           
           meta = with pkgs.lib; {
             description = "Event-driven Claude AI adapter service for CIM ecosystems";
@@ -229,8 +237,8 @@ EOF
           nativeBuildInputs = commonNativeBuildInputs;
           
           # Build only the SAGE service binary
-          cargoBuildOptions = [ "--bin" "sage_service" ];
-          cargoTestOptions = [ "--bin" "sage_service" ];
+          cargoBuildOptions = [ "--bin" "sage-service" ];
+          cargoTestOptions = [ "--bin" "sage-service" ];
           
           # Disable tests due to compilation issues in test code
           doCheck = false;
