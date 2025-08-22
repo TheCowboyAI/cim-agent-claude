@@ -18,7 +18,7 @@ use cim_claude_adapter::{
 };
 use crate::{
     messages::{Message, Tab, HealthStatus, SystemMetrics},
-    nats_client::nats_subscription,
+    nats_client::{nats_subscription, sage_response_subscription},
     sage_client,
 };
 
@@ -99,7 +99,10 @@ impl CimManagerApp {
     }
     
     pub fn subscription(&self) -> iced::Subscription<Message> {
-        nats_subscription()
+        iced::Subscription::batch([
+            nats_subscription(),
+            sage_response_subscription(),
+        ])
     }
     
     pub fn update(&mut self, message: Message) -> Task<Message> {

@@ -6,6 +6,7 @@
 use iced::futures::{stream, Stream};
 use futures::StreamExt;
 use tracing::{info, error, warn};
+use serde_json;
 
 // Simplified domain types - complex command/event system removed
 use crate::messages::Message;
@@ -95,10 +96,62 @@ pub fn nats_event_stream() -> impl Stream<Item = Message> {
     })
 }
 
+/// SAGE Response Subscription - Stream of SAGE responses from NATS
+pub fn sage_response_stream() -> impl Stream<Item = Message> {
+    stream::unfold((), |_| async {
+        match get_nats_client() {
+            Some(client) => {
+                match client.subscribe("sage.response.*").await {
+                    Ok(mut subscriber) => {
+                        info!("SAGE response stream started");
+                        while let Some(msg) = subscriber.next().await {
+                            match String::from_utf8(msg.payload.to_vec()) {
+                                Ok(json_str) => {
+                                    info!("Received SAGE response: {}", json_str);
+                                    match serde_json::from_str::<crate::sage_client::SageResponse>(&json_str) {
+                                        Ok(response) => {
+                                            return Some((Message::SageResponseReceived(response), ()));
+                                        }
+                                        Err(e) => {
+                                            error!("Failed to parse SAGE response: {}", e);
+                                            return Some((Message::Error(format!("SAGE response parsing failed: {}", e)), ()));
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    warn!("Failed to parse SAGE response as UTF-8: {}", e);
+                                    return Some((Message::Error(format!("SAGE response UTF-8 parsing failed: {}", e)), ()));
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to subscribe to SAGE responses: {}", e);
+                        return Some((Message::ConnectionError(format!("SAGE subscription failed: {}", e)), ()));
+                    }
+                }
+            }
+            None => {
+                error!("NATS client not initialized");
+                return Some((Message::Error("NATS client not initialized".to_string()), ()));
+            }
+        }
+        None
+    })
+}
+
 /// TEA-compliant subscription for NATS events
 pub fn nats_subscription() -> iced::Subscription<Message> {
     iced::Subscription::run_with_id(
         "nats-events",
         nats_event_stream()
+    )
+}
+
+/// TEA-compliant subscription for SAGE responses
+pub fn sage_response_subscription() -> iced::Subscription<Message> {
+    iced::Subscription::run_with_id(
+        "sage-responses",
+        sage_response_stream()
     )
 }
