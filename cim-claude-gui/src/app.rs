@@ -17,9 +17,10 @@ use cim_claude_adapter::{
     domain::ConversationContext,
 };
 use crate::{
-    messages::{Message, Tab, HealthStatus, SystemMetrics},
-    nats_client::{nats_subscription, sage_response_subscription},
+    messages::{Message, Tab, HealthStatus, SystemMetrics, ConversationMessage, MessageRole},
+    nats_client::{nats_subscription, sage_response_subscription, conversation_messages_subscription},
     sage_client,
+    views,
 };
 
 /// Main CIM Manager Application State - Pure UI State Only
@@ -51,6 +52,11 @@ pub struct CimManagerApp {
     sage_selected_expert: Option<String>,
     sage_status: Option<crate::sage_client::SageStatus>,
     sage_responses: Vec<crate::sage_client::SageResponse>,
+    
+    // Conversation Message Display
+    conversation_messages: HashMap<String, Vec<ConversationMessage>>, // conversation_id -> messages
+    selected_conversation_messages: Vec<ConversationMessage>,
+    message_input: String, // For sending messages to selected conversation
 }
 
 impl CimManagerApp {
@@ -80,6 +86,11 @@ impl CimManagerApp {
             sage_selected_expert: None,
             sage_status: None,
             sage_responses: Vec::new(),
+            
+            // Conversation message display
+            conversation_messages: HashMap::new(),
+            selected_conversation_messages: Vec::new(),
+            message_input: String::new(),
         };
         
         // NATS already connected at startup
@@ -102,6 +113,7 @@ impl CimManagerApp {
         iced::Subscription::batch([
             nats_subscription(),
             sage_response_subscription(),
+            conversation_messages_subscription(),
         ])
     }
     
@@ -156,11 +168,84 @@ impl CimManagerApp {
             
             Message::SendPrompt { conversation_id, prompt } => {
                 if self.connected {
-                    // Actually send the prompt to NATS
+                    // Create and store the user message immediately
+                    let user_message = ConversationMessage {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        conversation_id: conversation_id.clone(),
+                        role: MessageRole::User,
+                        content: prompt.clone(),
+                        timestamp: chrono::Utc::now(),
+                        agent_name: None,
+                    };
+                    
+                    // Store user message immediately for instant UI feedback
+                    self.conversation_messages
+                        .entry(conversation_id.clone())
+                        .or_insert_with(Vec::new)
+                        .push(user_message.clone());
+                    
+                    // Update selected conversation display if this is the active one
+                    if let Some(ref selected_id) = self.selected_conversation {
+                        if selected_id == &conversation_id {
+                            self.selected_conversation_messages = self.conversation_messages
+                                .get(&conversation_id)
+                                .cloned()
+                                .unwrap_or_default();
+                        }
+                    }
+                    
+                    // Send the prompt to NATS
                     let subject = format!("claude.conversation.prompt.{}", conversation_id);
                     let message_json = serde_json::json!({
                         "conversation_id": conversation_id,
                         "prompt": prompt,
+                        "timestamp": chrono::Utc::now().to_rfc3339()
+                    }).to_string();
+                    
+                    Task::perform(
+                        crate::nats_client::commands::publish_simple_message(subject, message_json),
+                        std::convert::identity
+                    )
+                } else {
+                    self.error_message = Some("Not connected to NATS".to_string());
+                    Task::none()
+                }
+            }
+            
+            Message::SendMessage { conversation_id, message } => {
+                if self.connected {
+                    // Create and store the user message immediately
+                    let user_message = ConversationMessage {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        conversation_id: conversation_id.clone(),
+                        role: MessageRole::User,
+                        content: message.clone(),
+                        timestamp: chrono::Utc::now(),
+                        agent_name: None,
+                    };
+                    
+                    // Store user message immediately
+                    self.conversation_messages
+                        .entry(conversation_id.clone())
+                        .or_insert_with(Vec::new)
+                        .push(user_message.clone());
+                    
+                    // Update display and clear input
+                    if let Some(ref selected_id) = self.selected_conversation {
+                        if selected_id == &conversation_id {
+                            self.selected_conversation_messages = self.conversation_messages
+                                .get(&conversation_id)
+                                .cloned()
+                                .unwrap_or_default();
+                        }
+                    }
+                    self.message_input.clear();
+                    
+                    // Send to NATS
+                    let subject = format!("claude.conversation.prompt.{}", conversation_id);
+                    let message_json = serde_json::json!({
+                        "conversation_id": conversation_id,
+                        "prompt": message,
                         "timestamp": chrono::Utc::now().to_rfc3339()
                     }).to_string();
                     
@@ -198,12 +283,25 @@ impl CimManagerApp {
             }
             
             Message::ConversationSelected(id) => {
-                self.selected_conversation = Some(id);
+                self.selected_conversation = Some(id.clone());
+                
+                // Load conversation messages when selecting a conversation
+                if let Some(messages) = self.conversation_messages.get(&id) {
+                    self.selected_conversation_messages = messages.clone();
+                } else {
+                    self.selected_conversation_messages = Vec::new();
+                    // Optionally request conversation history from NATS here
+                }
                 Task::none()
             }
             
             Message::PromptInputChanged(value) => {
                 self.prompt_input = value;
+                Task::none()
+            }
+            
+            Message::MessageInputChanged(value) => {
+                self.message_input = value;
                 Task::none()
             }
             
@@ -300,6 +398,50 @@ impl CimManagerApp {
                 Task::none()
             }
             
+            // Conversation Message Handling
+            Message::ConversationMessageReceived(message) => {
+                tracing::info!("Received conversation message for conversation: {}", message.conversation_id);
+                
+                // Store message in conversation history
+                self.conversation_messages
+                    .entry(message.conversation_id.clone())
+                    .or_insert_with(Vec::new)
+                    .push(message.clone());
+                
+                // Update selected conversation display if this is the active conversation
+                if let Some(ref selected_id) = self.selected_conversation {
+                    if selected_id == &message.conversation_id {
+                        self.selected_conversation_messages = self.conversation_messages
+                            .get(&message.conversation_id)
+                            .cloned()
+                            .unwrap_or_default();
+                    }
+                }
+                
+                Task::none()
+            }
+            
+            Message::ConversationHistoryRequested(conversation_id) => {
+                // Load conversation history from stored messages
+                if let Some(messages) = self.conversation_messages.get(&conversation_id) {
+                    self.selected_conversation_messages = messages.clone();
+                }
+                Task::none()
+            }
+            
+            Message::ConversationHistoryReceived(conversation_id, messages) => {
+                // Store received conversation history
+                self.conversation_messages.insert(conversation_id.clone(), messages.clone());
+                
+                // Update display if this is the selected conversation
+                if let Some(ref selected_id) = self.selected_conversation {
+                    if selected_id == &conversation_id {
+                        self.selected_conversation_messages = messages;
+                    }
+                }
+                Task::none()
+            }
+            
             Message::ThemeToggled => {
                 self.dark_mode = !self.dark_mode;
                 self.theme = if self.dark_mode { Theme::Dark } else { Theme::Light };
@@ -380,12 +522,6 @@ impl CimManagerApp {
     }
     
     fn view_connection_controls(&self) -> Element<'_, Message> {
-        let status_text = if self.connected {
-            text("🟢 Connected")
-        } else {
-            text("🔴 Disconnected")
-        };
-        
         let connect_button = if self.connected {
             button(text("Disconnect"))
                 .on_press(Message::Disconnected)
@@ -401,7 +537,7 @@ impl CimManagerApp {
                 .on_input(Message::NatsUrlChanged)
                 .width(Length::Fixed(320.0)),
             connect_button,
-            status_text,
+            views::connection_status_view(self.connected, self.connection_error.as_ref()),
         ]
         .spacing(12)
         .align_y(iced::alignment::Vertical::Center))
@@ -525,22 +661,65 @@ impl CimManagerApp {
     }
     
     fn view_conversations(&self) -> Element<'_, Message> {
-        let conversations: Vec<Element<Message>> = self.conversations
-            .iter()
-            .map(|(id, aggregate)| {
-                button(text(format!("{} - {} messages", id, aggregate.messages.len())))
-                    .on_press(Message::ConversationSelected(id.clone()))
-                    .width(Length::Fill)
-                    .into()
-            })
-            .collect();
+        use iced::widget::scrollable;
         
-        column![
-            text("Active Conversations").size(20),
-            column(conversations).spacing(5),
-        ]
-        .spacing(10)
-        .into()
+        // Create list of conversations from both sources
+        let mut all_conversations: Vec<(String, usize)> = Vec::new();
+        
+        // Add from domain conversations
+        for (id, aggregate) in &self.conversations {
+            all_conversations.push((id.clone(), aggregate.messages.len()));
+        }
+        
+        // Add from message conversations (avoid duplicates)
+        for (id, messages) in &self.conversation_messages {
+            if !all_conversations.iter().any(|(existing_id, _)| existing_id == id) {
+                all_conversations.push((id.clone(), messages.len()));
+            }
+        }
+        
+        let mut conversations = Vec::new();
+        for (id, message_count) in all_conversations {
+            let is_selected = self.selected_conversation.as_ref() == Some(&id);
+            conversations.push(views::conversation_item_view(id, message_count, is_selected));
+        }
+        
+        let conversation_list = if conversations.is_empty() {
+            column![
+                text("No active conversations").size(14),
+                text("Start a new conversation from the Dashboard").size(12),
+            ].into()
+        } else {
+            scrollable(column(conversations).spacing(5)).height(Length::Fixed(300.0)).into()
+        };
+        
+        let mut content = vec![
+            text("Active Conversations").size(20).into(),
+            conversation_list,
+        ];
+        
+        // Show selected conversation messages
+        if let Some(ref conversation_id) = self.selected_conversation {
+            content.push(
+                text(format!("💬 Conversation: {}", conversation_id))
+                    .size(18)
+                    .into()
+            );
+            
+            // Use the new conversation history view component
+            content.push(views::conversation_history_view(&self.selected_conversation_messages));
+            
+            // Use the new message input view component
+            content.push(views::message_input_view(
+                conversation_id.clone(),
+                &self.message_input
+            ));
+        }
+        
+        column(content)
+            .spacing(15)
+            .padding(10)
+            .into()
     }
     
     fn view_events(&self) -> Element<'_, Message> {

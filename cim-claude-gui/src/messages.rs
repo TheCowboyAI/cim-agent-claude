@@ -19,6 +19,26 @@ use crate::wasm_types::{
 };
 
 
+/// Conversation message from Claude or user
+#[derive(Debug, Clone)]
+pub struct ConversationMessage {
+    pub id: String,
+    pub conversation_id: String,
+    pub role: MessageRole,
+    pub content: String,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub agent_name: Option<String>, // For SAGE orchestrator responses
+}
+
+/// Role of a message in conversation
+#[derive(Debug, Clone, PartialEq)]
+pub enum MessageRole {
+    User,
+    Assistant,
+    System,
+    Sage,
+}
+
 /// TEA Messages for the CIM Manager
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -37,6 +57,10 @@ pub enum Message {
         conversation_id: String,
         prompt: String,
     },
+    SendMessage {
+        conversation_id: String,
+        message: String,
+    },
     EndConversation {
         conversation_id: String,
         reason: String,
@@ -50,6 +74,7 @@ pub enum Message {
     TabSelected(Tab),
     ConversationSelected(String),
     PromptInputChanged(String),
+    MessageInputChanged(String),
     SessionIdChanged(String),
     NatsUrlChanged(String),
     
@@ -81,6 +106,11 @@ pub enum Message {
     SageSendQuery,
     SageClearConversation,
     SageNewSession,
+    
+    // Conversation Message Handling
+    ConversationMessageReceived(ConversationMessage),
+    ConversationHistoryRequested(String), // conversation_id
+    ConversationHistoryReceived(String, Vec<ConversationMessage>), // conversation_id, messages
     
     // Error Handling
     Error(String),
