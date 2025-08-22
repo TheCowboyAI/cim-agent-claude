@@ -49,7 +49,7 @@
           cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
             inherit src;
             name = "${pname}-${version}";
-            hash = "sha256-BJ+mORRT1J+VHQV6u4UPcvHMuAyfKiT1mvlulHzJ9kA=";
+            hash = "sha256-dki7KNNJRwXgIpBClXFNVHgUF15e1mIZEMejqLLIy8k=";
           };
           
           buildInputs = commonBuildInputs;
@@ -77,7 +77,7 @@
           cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
             inherit src;
             name = "${pname}-${version}";
-            hash = "sha256-BJ+mORRT1J+VHQV6u4UPcvHMuAyfKiT1mvlulHzJ9kA=";
+            hash = "sha256-dki7KNNJRwXgIpBClXFNVHgUF15e1mIZEMejqLLIy8k=";
           };
           
           buildInputs = commonBuildInputs ++ (with pkgs; [
@@ -216,7 +216,7 @@ EOF
           cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
             inherit src;
             name = "${pname}-${version}";
-            hash = "sha256-BJ+mORRT1J+VHQV6u4UPcvHMuAyfKiT1mvlulHzJ9kA=";
+            hash = "sha256-dki7KNNJRwXgIpBClXFNVHgUF15e1mIZEMejqLLIy8k=";
           };
           
           buildInputs = commonBuildInputs;
