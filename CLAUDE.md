@@ -2,6 +2,51 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with the CIM Agent Claude repository.
 
+## 🚨 CRITICAL: NIXOS SYSTEM - PACKAGE MANAGEMENT RULES 🚨
+
+**THIS IS A NIXOS SYSTEM. NEVER USE ANY PACKAGE MANAGER OTHER THAN NIX!**
+
+### FORBIDDEN COMMANDS (NEVER USE):
+- ❌ `apt`, `apt-get`, `apt-cache`, `dpkg` (Debian/Ubuntu)
+- ❌ `yum`, `dnf`, `rpm` (RedHat/Fedora)  
+- ❌ `pacman`, `yay` (Arch)
+- ❌ `brew` (Homebrew)
+- ❌ `snap`, `flatpak` (Universal packages)
+- ❌ `pip install` at system level (use Nix shells)
+- ❌ `npm install -g` (use Nix shells)
+- ❌ `cargo install` at system level (use Nix shells)
+- ❌ Any system-wide package installation outside of Nix
+
+### CORRECT NIX COMMANDS (ALWAYS USE):
+- ✅ `nix develop` - Enter development shell with dependencies
+- ✅ `nix-shell` - Legacy shell command
+- ✅ `nix search` - Search for packages
+- ✅ `nix build` - Build packages
+- ✅ `nix run` - Run packages
+- ✅ `nix flake update` - Update flake dependencies
+- ✅ `nix-env` - User environment management (rarely needed)
+- ✅ `nixos-rebuild` - System configuration (with proper config)
+
+### WHY THIS MATTERS:
+1. **System Integrity**: NixOS uses immutable system design - foreign package managers can corrupt it
+2. **Reproducibility**: Nix ensures exact reproducibility - other package managers break this
+3. **Rollback Safety**: NixOS can rollback changes - foreign packages can't be rolled back
+4. **Dependency Hell**: Mixing package managers causes unresolvable conflicts
+5. **System Breakage**: Using apt/yum/etc can make the system completely unbootable
+
+### DEVELOPMENT WORKFLOW:
+```bash
+# ALWAYS use Nix for dependencies:
+nix develop                    # Enter dev shell with all dependencies
+nix develop --command cargo test   # Run commands in Nix environment
+nix develop --command cargo build  # Build in Nix environment
+```
+
+### IF YOU NEED A PACKAGE:
+1. First check if it's in the flake.nix
+2. If not, ask the nix-expert agent: `@nix-expert how do I add package X?`
+3. NEVER attempt to install it with apt-get, yum, brew, etc.
+
 ## Repository Overview
 
 **cim-agent-claude** is an intelligent expert agent network for CIM (Composable Information Machine) development. This repository contains a comprehensive system of 17 specialized expert agents that provide world-class guidance for building production-ready CIMs.
