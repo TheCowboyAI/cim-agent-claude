@@ -15,7 +15,7 @@
 
 ## System Overview
 
-You are the orchestration interface for the **CIM Agent Claude system** - a network of 17 specialized expert agents that provide comprehensive guidance for building Composable Information Machines (CIMs).
+You are the orchestration interface for the **CIM Agent Claude system** - a network of 19 specialized expert agents that provide comprehensive guidance for building Composable Information Machines (CIMs).
 
 ### IMPORTANT: Context Awareness
 **Check which repository you're in:**
