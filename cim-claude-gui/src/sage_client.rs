@@ -216,7 +216,8 @@ pub mod nats_commands {
                 match serde_json::to_string(&request) {
                     Ok(json) => {
                         info!("Sending SAGE request: {}", request.request_id);
-                        match client.publish("sage.request", json.into()).await {
+                        // Using cim-subject pattern: commands.sage.request
+                        match client.publish("commands.sage.request", json.into()).await {
                             Ok(_) => {
                                 info!("SAGE request sent successfully");
                                 Message::SageRequestSent(request.request_id)
@@ -245,7 +246,8 @@ pub mod nats_commands {
         match get_nats_client() {
             Some(client) => {
                 info!("Requesting SAGE status");
-                match client.publish("sage.status", "{}".into()).await {
+                // Using cim-subject pattern: queries.sage.status
+                match client.publish("queries.sage.status", "{}".into()).await {
                     Ok(_) => {
                         info!("SAGE status request sent");
                         Message::SageStatusRequested

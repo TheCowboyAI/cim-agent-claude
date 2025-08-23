@@ -23,6 +23,9 @@ use crate::{
 
 /// Main CIM Manager Application State - Pure UI State Only
 pub struct CimManagerApp {
+    // Domain Configuration
+    domain: Option<String>,
+    
     // Connection State - UI state only
     nats_url: String,
     connected: bool,
@@ -54,7 +57,11 @@ pub struct CimManagerApp {
 
 impl CimManagerApp {
     pub fn new() -> (Self, Task<Message>) {
+        // Detect domain from environment or hostname
+        let domain = Self::detect_domain();
+        
         let app = Self {
+            domain,
             nats_url: "nats://localhost:4222".to_string(),
             connected: true, // NATS handled globally
             connection_error: None,
@@ -81,6 +88,37 @@ impl CimManagerApp {
         };
         
         (app, Task::none())
+    }
+    
+    /// Detect domain from environment or hostname
+    fn detect_domain() -> Option<String> {
+        // First check environment variable
+        if let Ok(domain) = std::env::var("CIM_DOMAIN") {
+            return Some(domain);
+        }
+        
+        // Check SAGE_DOMAIN for backward compatibility
+        if let Ok(domain) = std::env::var("SAGE_DOMAIN") {
+            return Some(domain);
+        }
+        
+        // Use hostname as domain
+        if let Ok(hostname) = hostname::get() {
+            if let Some(host_str) = hostname.to_str() {
+                return Some(host_str.to_string());
+            }
+        }
+        
+        None
+    }
+    
+    /// Build a subject with optional domain prefix
+    pub fn build_subject(&self, base: &str) -> String {
+        if let Some(ref domain) = self.domain {
+            format!("{}.{}", domain, base)
+        } else {
+            base.to_string()
+        }
     }
     
     pub fn title(&self) -> String {
@@ -239,7 +277,8 @@ impl CimManagerApp {
                 };
                 
                 // Send via global NATS - handled through static/global mechanism
-                Task::perform(Self::send_sage_request_global(request), |msg| msg)
+                let domain = self.domain.clone();
+                Task::perform(Self::send_sage_request_global(request, domain), |msg| msg)
             }
             
             Message::SageRequestSent(request_id) => {
@@ -694,15 +733,23 @@ impl CimManagerApp {
     }
     
     /// Send SAGE request via global NATS client
-    async fn send_sage_request_global(request: crate::sage_client::SageRequest) -> Message {
+    async fn send_sage_request_global(request: crate::sage_client::SageRequest, domain: Option<String>) -> Message {
         let request_id = request.request_id.clone();
+        
+        // Build domain-aware subject using cim-subject pattern
+        // Pattern: {domain}.commands.sage.request
+        let subject = if let Some(ref d) = domain {
+            format!("{}.commands.sage.request", d)
+        } else {
+            "commands.sage.request".to_string()
+        };
         
         // Connect to NATS for sending (global clients can be created as needed)
         match async_nats::connect("nats://localhost:4222").await {
             Ok(client) => {
                 match serde_json::to_vec(&request) {
                     Ok(json) => {
-                        match client.publish("sage.request", json.into()).await {
+                        match client.publish(subject.clone(), json.into()).await {
                             Ok(_) => {
                                 tracing::info!("✅ SAGE request sent globally: {}", request_id);
                                 Message::SageRequestSent(request_id)

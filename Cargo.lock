@@ -850,10 +850,12 @@ dependencies = [
  "chrono",
  "cim-domain",
  "cim-graph",
+ "cim-subject 0.5.0 (git+https://github.com/thecowboyai/cim-subject.git)",
  "clap",
  "futures",
  "futures-util",
  "hex",
+ "hostname",
  "reqwest",
  "serde",
  "serde_json",
@@ -896,11 +898,13 @@ dependencies = [
  "bytes",
  "chrono",
  "cim-claude-adapter",
+ "cim-subject 0.5.0 (git+https://github.com/thecowboyai/cim-subject.git)",
  "console_error_panic_hook",
  "console_log",
  "futures",
  "gloo-net",
  "gloo-timers",
+ "hostname",
  "iced",
  "iced_modern_theme",
  "js-sys",
@@ -947,7 +951,7 @@ dependencies = [
  "cid",
  "cim-component",
  "cim-ipld",
- "cim-subject",
+ "cim-subject 0.5.0 (git+https://github.com/TheCowboyAI/cim-subject?tag=v0.5.0)",
  "futures",
  "indexmap",
  "lru",
@@ -968,7 +972,7 @@ source = "git+https://github.com/thecowboyai/cim-graph.git#3168c3808fa9c33660007
 dependencies = [
  "bincode",
  "chrono",
- "cim-subject",
+ "cim-subject 0.5.0 (git+https://github.com/TheCowboyAI/cim-subject?tag=v0.5.0)",
  "petgraph",
  "rayon",
  "serde",
@@ -1012,6 +1016,21 @@ dependencies = [
 name = "cim-subject"
 version = "0.5.0"
 source = "git+https://github.com/TheCowboyAI/cim-subject?tag=v0.5.0#ecf16081bc8e8906549e61497647d7a9b3cab93e"
+dependencies = [
+ "cim-ipld",
+ "dashmap",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.16",
+ "tokio",
+ "tracing",
+ "uuid 1.18.0",
+]
+
+[[package]]
+name = "cim-subject"
+version = "0.5.0"
+source = "git+https://github.com/thecowboyai/cim-subject.git#ecf16081bc8e8906549e61497647d7a9b3cab93e"
 dependencies = [
  "cim-ipld",
  "dashmap",
@@ -2424,6 +2443,17 @@ name = "hexf-parse"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
+
+[[package]]
+name = "hostname"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a56f203cd1c76362b69e3863fd987520ac36cf70a8c92627449b2f64a8cf7d65"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "windows-link",
+]
 
 [[package]]
 name = "http"

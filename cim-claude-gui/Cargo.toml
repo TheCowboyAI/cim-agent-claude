@@ -17,6 +17,8 @@ required-features = ["wasm"]
 [dependencies]
 # CIM Claude Adapter dependency (native only)
 cim-claude-adapter = { path = "../cim-claude-adapter", features = ["native"], optional = true }
+cim-subject = { git = "https://github.com/thecowboyai/cim-subject.git" }
+hostname = "0.4"
 
 # Core async runtime (native only)
 tokio = { version = "1.47", features = ["full"], optional = true }

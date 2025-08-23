@@ -14,6 +14,7 @@ use tokio;
 use tracing::{info, error, warn};
 use uuid::Uuid;
 use chrono::Utc;
+// cim_subject will be used for advanced subject routing in future versions
 
 /// SAGE Request message sent via NATS
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,6 +83,7 @@ pub struct SageService {
     patterns_learned: usize,
     expert_agents: HashMap<String, ExpertAgent>,
     claude_api_key: String,
+    domain: Option<String>,
 }
 
 /// Expert Agent definition for orchestration
@@ -102,7 +104,13 @@ impl SageService {
         // Initialize expert agents (now includes CIM Expert functionality)
         let expert_agents = Self::initialize_expert_agents();
         
+        // Detect domain from environment or hostname
+        let domain = Self::detect_domain();
+        
         info!("🧠 SAGE Consciousness Initialized");
+        if let Some(ref d) = domain {
+            info!("📍 Domain: {}", d);
+        }
         info!("Expert Agents Available: {}", expert_agents.len());
         
         Ok(Self {
@@ -113,7 +121,79 @@ impl SageService {
             patterns_learned: 0,
             expert_agents,
             claude_api_key: claude_api_key.to_string(),
+            domain,
         })
+    }
+    
+    /// Detect domain from environment or hostname
+    fn detect_domain() -> Option<String> {
+        // First check environment variable
+        if let Ok(domain) = std::env::var("CIM_DOMAIN") {
+            return Some(domain);
+        }
+        
+        // Check SAGE_DOMAIN for backward compatibility
+        if let Ok(domain) = std::env::var("SAGE_DOMAIN") {
+            return Some(domain);
+        }
+        
+        // Use hostname as domain
+        if let Ok(hostname) = hostname::get() {
+            if let Some(host_str) = hostname.to_str() {
+                return Some(host_str.to_string());
+            }
+        }
+        
+        None
+    }
+    
+    /// Build a subject with optional domain prefix
+    fn build_subject(&self, base: &str) -> String {
+        if let Some(ref domain) = self.domain {
+            format!("{}.{}", domain, base)
+        } else {
+            base.to_string()
+        }
+    }
+    
+    /// Build request subject using cim-subject pattern
+    /// Pattern: {domain}.commands.sage.request
+    fn request_subject(&self) -> String {
+        if let Some(ref domain) = self.domain {
+            format!("{}.commands.sage.request", domain)
+        } else {
+            "commands.sage.request".to_string()
+        }
+    }
+    
+    /// Build response subject with ID using cim-subject pattern
+    /// Pattern: {domain}.events.sage.response_{id}
+    fn response_subject(&self, id: &str) -> String {
+        if let Some(ref domain) = self.domain {
+            format!("{}.events.sage.response_{}", domain, id)
+        } else {
+            format!("events.sage.response_{}", id)
+        }
+    }
+    
+    /// Build events subject using cim-subject pattern
+    /// Pattern: {domain}.events.sage.{event_type}
+    fn events_subject(&self, event_type: &str) -> String {
+        if let Some(ref domain) = self.domain {
+            format!("{}.events.sage.{}", domain, event_type)
+        } else {
+            format!("events.sage.{}", event_type)
+        }
+    }
+    
+    /// Build status subject using cim-subject pattern
+    /// Pattern: {domain}.queries.sage.status
+    fn status_subject(&self) -> String {
+        if let Some(ref domain) = self.domain {
+            format!("{}.queries.sage.status", domain)
+        } else {
+            "queries.sage.status".to_string()
+        }
     }
     
     /// Start SAGE service - Listen for requests and provide responses
@@ -126,12 +206,19 @@ impl SageService {
         self.initialize_sage_streams().await?;
         
         // Start processing SAGE requests
-        let request_subscriber = self.nats_client.subscribe("sage.request").await?;
-        let status_subscriber = self.nats_client.subscribe("sage.status").await?;
+        let request_subject = self.request_subject();
+        let status_subject = self.status_subject();
+        
+        info!("📨 Subscribing to: {}", request_subject);
+        info!("📊 Status endpoint: {}", status_subject);
+        
+        let request_subscriber = self.nats_client.subscribe(request_subject).await?;
+        let status_subscriber = self.nats_client.subscribe(status_subject).await?;
         
         // Process requests concurrently using separate client references
         let client_clone = self.nats_client.clone();
-        let request_handler = Self::handle_requests_static(client_clone, request_subscriber);
+        let domain_clone = self.domain.clone();
+        let request_handler = Self::handle_requests_static(client_clone, request_subscriber, domain_clone);
         let status_handler = self.handle_status_requests(status_subscriber);
         
         // Run both handlers concurrently
@@ -162,7 +249,7 @@ impl SageService {
                     // Publish response
                     match serde_json::to_vec(&response) {
                         Ok(response_json) => {
-                            let response_subject = format!("sage.response.{}", request.request_id);
+                            let response_subject = self.response_subject(&request.request_id);
                             
                             if let Err(e) = self.nats_client.publish(response_subject.clone(), response_json.into()).await {
                                 error!("Failed to publish SAGE response: {}", e);
@@ -185,8 +272,11 @@ impl SageService {
     }
     
     /// Static version of handle_requests to avoid borrowing conflicts
-    async fn handle_requests_static(nats_client: Client, mut subscriber: async_nats::Subscriber) -> Result<()> {
+    async fn handle_requests_static(nats_client: Client, mut subscriber: async_nats::Subscriber, domain: Option<String>) -> Result<()> {
         info!("🧠 SAGE Request Handler Started (Static)");
+        if let Some(ref d) = domain {
+            info!("📍 Domain: {}", d);
+        }
         
         while let Some(msg) = subscriber.next().await {
             match serde_json::from_slice::<SageRequest>(&msg.payload) {
@@ -207,7 +297,12 @@ impl SageService {
                     // Publish response
                     match serde_json::to_vec(&response) {
                         Ok(response_json) => {
-                            let response_subject = format!("sage.response.{}", request.request_id);
+                            // Use cim-subject pattern: {domain}.events.sage.response_{id}
+                            let response_subject = if let Some(ref d) = domain {
+                                format!("{}.events.sage.response_{}", d, request.request_id)
+                            } else {
+                                format!("events.sage.response_{}", request.request_id)
+                            };
                             
                             if let Err(e) = nats_client.publish(response_subject.clone(), response_json.into()).await {
                                 error!("Failed to publish SAGE response: {}", e);
@@ -245,7 +340,13 @@ impl SageService {
             
             match serde_json::to_vec(&status) {
                 Ok(status_json) => {
-                    if let Err(e) = self.nats_client.publish("sage.status.response", status_json.into()).await {
+                    // Use cim-subject pattern for status response
+                    let status_response_subject = if let Some(ref domain) = self.domain {
+                        format!("{}.events.sage.status_response", domain)
+                    } else {
+                        "events.sage.status_response".to_string()
+                    };
+                    if let Err(e) = self.nats_client.publish(status_response_subject, status_json.into()).await {
                         error!("Failed to publish SAGE status: {}", e);
                     }
                 }
@@ -448,7 +549,8 @@ impl SageService {
             }
         });
         
-        if let Err(e) = self.nats_client.publish("sage.events.orchestration", event.to_string().into()).await {
+        let event_subject = self.events_subject("orchestration");
+        if let Err(e) = self.nats_client.publish(event_subject, event.to_string().into()).await {
             error!("Failed to record orchestration event: {}", e);
         }
     }
@@ -457,10 +559,25 @@ impl SageService {
     async fn initialize_sage_streams(&self) -> Result<()> {
         info!("🌊 Initializing SAGE NATS Streams");
         
-        // Create SAGE events stream
+        // Create SAGE events stream with domain support
+        let stream_name = if let Some(ref domain) = self.domain {
+            format!("SAGE_{}_EVENTS", domain.to_uppercase().replace("-", "_"))
+        } else {
+            "SAGE_EVENTS".to_string()
+        };
+        
+        // Use cim-subject pattern: {domain}.events.sage.>
+        let events_pattern = if let Some(ref domain) = self.domain {
+            format!("{}.events.sage.>", domain)
+        } else {
+            "events.sage.>".to_string()
+        };
+        
+        info!("📊 Creating stream: {} with subjects: {}", stream_name, events_pattern);
+        
         let _events_stream = self.jetstream.create_stream(jetstream::stream::Config {
-            name: "SAGE_EVENTS".to_string(),
-            subjects: vec!["sage.events.>".to_string()],
+            name: stream_name,
+            subjects: vec![events_pattern],
             retention: jetstream::stream::RetentionPolicy::WorkQueue,
             storage: jetstream::stream::StorageType::File,
             ..Default::default()
