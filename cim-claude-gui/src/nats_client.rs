@@ -129,27 +129,63 @@ pub fn nats_event_stream() -> impl Stream<Item = Message> {
     stream::unfold((), |_| async {
         match get_nats_client() {
             Some(client) => {
-                match client.subscribe("cim.claude.events").await {
-                    Ok(mut subscriber) => {
-                        info!("NATS event stream started");
-                        while let Some(msg) = subscriber.next().await {
-                            // Simplified event handling - just log the message
-                            match String::from_utf8(msg.payload.to_vec()) {
-                                Ok(message) => {
-                                    info!("Received raw message: {}", message);
-                                    // For now, just ignore events since SAGE handles messaging
-                                    continue;
+                // Subscribe to both SAGE responses and general events
+                let sage_subscriber_result = client.subscribe("sage.response.*").await;
+                let status_subscriber_result = client.subscribe("sage.status.response").await;
+                
+                match (sage_subscriber_result, status_subscriber_result) {
+                    (Ok(mut sage_subscriber), Ok(mut status_subscriber)) => {
+                        info!("NATS event stream started - listening for SAGE responses");
+                        loop {
+                            tokio::select! {
+                                Some(msg) = sage_subscriber.next() => {
+                                    info!("Received SAGE response on subject: {}", msg.subject);
+                                    match String::from_utf8(msg.payload.to_vec()) {
+                                        Ok(response_json) => {
+                                            match serde_json::from_str::<crate::sage_client::SageResponse>(&response_json) {
+                                                Ok(sage_response) => {
+                                                    info!("Parsed SAGE response successfully");
+                                                    return Some((Message::SageResponseReceived(sage_response), ()));
+                                                }
+                                                Err(e) => {
+                                                    warn!("Failed to parse SAGE response JSON: {}", e);
+                                                    return Some((Message::Error(format!("SAGE response parsing failed: {}", e)), ()));
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            warn!("Failed to parse SAGE response as UTF-8: {}", e);
+                                            return Some((Message::Error(format!("SAGE response UTF-8 parsing failed: {}", e)), ()));
+                                        }
+                                    }
                                 }
-                                Err(e) => {
-                                    warn!("Failed to parse message as UTF-8: {}", e);
-                                    return Some((Message::Error(format!("Message parsing failed: {}", e)), ()));
+                                Some(msg) = status_subscriber.next() => {
+                                    info!("Received SAGE status response");
+                                    match String::from_utf8(msg.payload.to_vec()) {
+                                        Ok(status_json) => {
+                                            match serde_json::from_str::<crate::sage_client::SageStatus>(&status_json) {
+                                                Ok(sage_status) => {
+                                                    info!("Parsed SAGE status successfully");
+                                                    return Some((Message::SageStatusReceived(sage_status), ()));
+                                                }
+                                                Err(e) => {
+                                                    warn!("Failed to parse SAGE status JSON: {}", e);
+                                                    return Some((Message::Error(format!("SAGE status parsing failed: {}", e)), ()));
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            warn!("Failed to parse SAGE status as UTF-8: {}", e);
+                                            return Some((Message::Error(format!("SAGE status UTF-8 parsing failed: {}", e)), ()));
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
-                    Err(e) => {
-                        error!("Failed to subscribe to NATS events: {}", e);
-                        return Some((Message::ConnectionError(format!("Subscription failed: {}", e)), ()));
+                    (Err(e), _) | (_, Err(e)) => {
+                        error!("Failed to subscribe to SAGE subjects: {}", e);
+                        return Some((Message::ConnectionError(format!("SAGE subscription failed: {}", e)), ()));
                     }
                 }
             }
@@ -158,7 +194,6 @@ pub fn nats_event_stream() -> impl Stream<Item = Message> {
                 return Some((Message::Error("NATS client not initialized".to_string()), ()));
             }
         }
-        None
     })
 }
 

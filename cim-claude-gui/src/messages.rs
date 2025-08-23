@@ -44,6 +44,7 @@ pub enum MessageRole {
 pub enum Message {
     // Connection Management
     Connect(String), // NATS URL
+    NatsConnected(async_nats::Client), // NATS client ready
     Connected,
     Disconnected,
     ConnectionError(String),
