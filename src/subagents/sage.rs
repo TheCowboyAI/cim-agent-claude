@@ -1890,6 +1890,7 @@ impl SageSessionStateMachine {
         use SageSessionState::*;
         match (from, to) {
             (Created, AnalyzingQuery) => true,
+            (Created, Failed { .. }) => true, // Can fail immediately after creation
             (AnalyzingQuery, RoutingToExperts) => true,
             (AnalyzingQuery, Failed { .. }) => true,
             (RoutingToExperts, ProcessingWithExperts) => true,

@@ -31,6 +31,9 @@ pub mod infrastructure;
 pub mod orchestration;
 pub mod subagents;
 
+#[cfg(test)]
+mod lib_test;
+
 // Re-exports for public API
 pub use composition::composer::{CimModule, ModuleHealth};
 pub use composition::{CimComposer, ModuleRegistry, ModuleType};
