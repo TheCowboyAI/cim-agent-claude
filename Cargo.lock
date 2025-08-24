@@ -856,6 +856,7 @@ dependencies = [
  "futures-util",
  "hex",
  "hostname",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",
@@ -1010,6 +1011,36 @@ dependencies = [
  "tokio",
  "tracing",
  "zstd",
+]
+
+[[package]]
+name = "cim-llm-adapter"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "assert_matches",
+ "async-nats 0.42.0",
+ "async-trait",
+ "base64",
+ "bytes",
+ "chrono",
+ "cim-domain",
+ "cim-subject 0.5.0 (git+https://github.com/thecowboyai/cim-subject.git)",
+ "futures",
+ "futures-util",
+ "hostname",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-test",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "uuid 1.18.0",
+ "wiremock",
 ]
 
 [[package]]

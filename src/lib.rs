@@ -30,6 +30,9 @@ pub mod composition;
 pub mod infrastructure;
 pub mod orchestration;
 pub mod subagents;
+pub mod agent_system;
+pub mod sage_llm_client;
+pub mod agent_loader;
 
 #[cfg(test)]
 mod lib_test;
@@ -40,6 +43,12 @@ pub use composition::{CimComposer, ModuleRegistry, ModuleType};
 pub use infrastructure::{Config, NatsInfrastructure, ObservabilityInfrastructure};
 pub use orchestration::{ServiceOrchestrator, SystemHealth};
 pub use subagents::{SubagentRegistry, SubagentRouter, SubagentDispatcher, SubjectResolution, DomainType};
+
+// Universal Agent System re-exports
+pub use agent_system::{
+    AgentPersonality, AgentContext, AgentRegistry, AgentLoader, AgentComposer,
+    AgentId, AgentError, AgentResult, ContextManager,
+};
 
 /// CIM Agent Claude version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

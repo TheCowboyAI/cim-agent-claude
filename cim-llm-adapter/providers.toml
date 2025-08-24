@@ -1,0 +1,122 @@
+# CIM LLM Adapter - Multi-Provider Configuration
+# This file configures all available LLM providers for the Universal Agent System
+
+[providers]
+
+# Paid API Providers
+[providers.claude]
+enabled = true
+type = "claude"
+api_key_file = "secrets/claude.api.key"
+model = "claude-3-5-sonnet-20241022"
+max_tokens = 4096
+temperature = 0.7
+description = "Anthropic's Claude - Best for complex reasoning and analysis"
+
+[providers.openai]
+enabled = true
+type = "openai"
+api_key_file = "secrets/openai.api.key"
+model = "gpt-4-turbo-preview"
+max_tokens = 4096
+temperature = 0.7
+description = "OpenAI GPT-4 - Excellent for general tasks and code generation"
+
+# Local Models via Ollama (Free)
+[providers.ollama]
+enabled = true
+type = "ollama"
+base_url = "http://localhost:11434"
+description = "Local models via Ollama - Free and private"
+
+[providers.ollama.models.llama2]
+name = "llama2:7b"
+context_size = 4096
+description = "Meta's Llama 2 7B - Good general purpose model"
+use_for = ["general", "conversation", "analysis"]
+
+[providers.ollama.models.vicuna]
+name = "vicuna"
+context_size = 2048
+description = "Vicuna - Fine-tuned Llama for conversation"
+use_for = ["conversation", "assistance", "qa"]
+
+[providers.ollama.models.mistral]
+name = "mistral:7b"
+context_size = 8192
+description = "Mistral 7B - Efficient and powerful"
+use_for = ["code", "analysis", "reasoning"]
+
+[providers.ollama.models.codellama]
+name = "codellama:7b"
+context_size = 4096
+description = "Code Llama - Specialized for code generation"
+use_for = ["code", "programming", "technical"]
+
+[providers.ollama.models.phi2]
+name = "phi-2"
+context_size = 2048
+description = "Microsoft Phi-2 - Small but capable"
+use_for = ["quick_responses", "simple_tasks"]
+
+# Free API Providers (with limits)
+[providers.huggingface]
+enabled = false  # Enable when API key is available
+type = "huggingface"
+api_key_file = "secrets/huggingface.api.key"
+model = "meta-llama/Llama-2-70b-chat-hf"
+description = "HuggingFace Inference API - Various open models"
+
+# Provider Selection Strategy
+[strategy]
+default = "claude"  # Default provider for SAGE and critical agents
+fallback_chain = ["claude", "openai", "mistral", "llama2"]  # Fallback order if primary fails
+
+# Agent-to-Provider Mapping
+[agent_mapping]
+# Map specific agents to optimal providers
+sage = "claude"  # SAGE needs best reasoning
+cim-expert = "claude"
+ddd-expert = "claude"
+tdd-expert = "openai"  # GPT-4 excellent for test generation
+git-expert = "codellama"  # Code-specific tasks
+qa-expert = "mistral"  # Good balance of speed and quality
+bdd-expert = "openai"
+nats-expert = "claude"
+network-expert = "mistral"
+nix-expert = "mistral"
+subject-expert = "claude"
+event-storming-expert = "claude"
+domain-expert = "claude"
+iced-ui-expert = "codellama"
+elm-architecture-expert = "openai"
+cim-tea-ecs-expert = "claude"
+cim-domain-expert = "claude"
+language-expert = "claude"
+ricing-expert = "vicuna"  # Conversational for aesthetics
+
+# Performance Profiles
+[profiles.fast]
+providers = ["phi2", "mistral", "vicuna"]
+description = "Fast responses, lower quality"
+
+[profiles.balanced]
+providers = ["mistral", "llama2", "openai"]
+description = "Balance of speed and quality"
+
+[profiles.quality]
+providers = ["claude", "openai", "mistral"]
+description = "Highest quality responses"
+
+[profiles.local]
+providers = ["mistral", "llama2", "vicuna", "codellama", "phi2"]
+description = "Local models only - private and free"
+
+# Rate Limiting Configuration
+[rate_limits]
+claude.requests_per_minute = 50
+claude.tokens_per_minute = 40000
+openai.requests_per_minute = 60
+openai.tokens_per_minute = 90000
+ollama.requests_per_minute = 1000  # Local, no real limit
+huggingface.requests_per_minute = 30

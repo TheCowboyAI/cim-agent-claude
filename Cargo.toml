@@ -45,6 +45,8 @@ cim-graph = { git = "https://github.com/thecowboyai/cim-graph.git" }
 cim-domain = { git = "https://github.com/thecowboyai/cim-domain.git" }
 cim-subject = { git = "https://github.com/thecowboyai/cim-subject.git" }
 hostname = "0.4"
+# Universal Agent System dependencies
+regex = "1.10"
 # SAGE executable dependencies
 clap = { version = "4.5", features = ["derive"] }
 reqwest = { version = "0.12", features = ["json"] }
@@ -61,6 +63,7 @@ members = [
     ".",
     "cim-claude-adapter",
     "cim-claude-gui",
+    "cim-llm-adapter",
 ]
 resolver = "2"
 
@@ -79,3 +82,6 @@ thiserror = "1.0"
 anyhow = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# Test dependencies
+tokio-test = "0.4"
+tempfile = "3.10"

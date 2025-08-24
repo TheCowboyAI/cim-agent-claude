@@ -1,0 +1,44 @@
+[package]
+name = "cim-llm-adapter"
+version = "0.1.0"
+edition = "2021"
+description = "CIM LLM Adapter - Universal LLM abstraction layer with NATS integration"
+license = "MIT"
+repository = "https://github.com/TheCowboyAI/cim-agent-claude"
+
+[[bin]]
+name = "llm-adapter-service"
+path = "src/bin/llm_adapter_service.rs"
+
+[dependencies]
+# Workspace dependencies
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+futures-util = "0.3"
+async-nats = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+bytes = { workspace = true }
+
+# Additional dependencies for LLM integration
+reqwest = { version = "0.12", features = ["json"] }
+url = "2.5"
+base64 = "0.22"
+hostname = "0.4"
+
+# CIM specific dependencies
+cim-subject = { git = "https://github.com/thecowboyai/cim-subject.git" }
+cim-domain = { git = "https://github.com/thecowboyai/cim-domain.git" }
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+wiremock = "0.6"
+tempfile = "3.10"
+assert_matches = "1.5"

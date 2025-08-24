@@ -15,6 +15,7 @@ pub mod app;
 pub mod messages;
 pub mod nats_client;
 pub mod nats_client_fixed;
+pub mod nats_integration;
 pub mod sage_client;
 pub mod views;
 
