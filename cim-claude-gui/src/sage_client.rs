@@ -200,6 +200,16 @@ impl SageClient {
         self.conversation_history.clear();
         self.project_context = None;
     }
+    
+    /// Get session ID (for mock data access)
+    pub fn session_id(&self) -> &str {
+        &self.session_id
+    }
+    
+    /// Get project context (for mock data access)
+    pub fn project_context(&self) -> &Option<ProjectContext> {
+        &self.project_context
+    }
 }
 
 /// SAGE NATS Commands for GUI integration

@@ -14,6 +14,7 @@
 pub mod app;
 pub mod messages;
 pub mod nats_client;
+pub mod nats_client_fixed;
 pub mod sage_client;
 pub mod views;
 
@@ -25,3 +26,6 @@ pub mod wasm_types;
 
 pub use app::CimManagerApp;
 pub use messages::Message;
+
+#[cfg(test)]
+mod tests;

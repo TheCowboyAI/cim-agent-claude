@@ -9,7 +9,7 @@
 //! Built with Iced using The Elm Architecture (TEA).
 
 use cim_claude_gui::{CimManagerApp, Message};
-use iced::futures::{stream, StreamExt};
+use cim_claude_gui::nats_client_fixed;
 
 /// Detect domain from environment or hostname
 fn detect_domain() -> Option<String> {
@@ -35,84 +35,20 @@ fn detect_domain() -> Option<String> {
 
 /// Global NATS subscription - runs at application level, sends TEA Messages
 fn nats_global_subscription() -> iced::Subscription<Message> {
-    let domain = detect_domain();
-    
-    iced::Subscription::run_with_id(
-        "global-nats-subscription",
-        stream::unfold((None, domain), |(nats_client, domain)| async move {
-            // Get or create NATS client
-            let client = match nats_client {
-                Some(client) => client,
-                None => {
-                    match async_nats::connect("nats://localhost:4222").await {
-                        Ok(client) => {
-                            tracing::info!("✅ Global NATS connected");
-                            client
-                        }
-                        Err(e) => {
-                            tracing::error!("❌ Global NATS connection failed: {}", e);
-                            return Some((Message::ConnectionError(format!("NATS failed: {}", e)), (None, domain.clone())));
-                        }
-                    }
-                }
-            };
-
-            // Subscribe to SAGE subjects using cim-subject pattern
-            // Pattern: {domain}.events.sage.response_*
-            let sage_subject = if let Some(ref d) = domain {
-                format!("{}.events.sage.response_*", d)
-            } else {
-                "events.sage.response_*".to_string()
-            };
-            
-            // Pattern: {domain}.events.sage.status_response
-            let status_subject = if let Some(ref d) = domain {
-                format!("{}.events.sage.status_response", d)
-            } else {
-                "events.sage.status_response".to_string()
-            };
-            
-            let sage_result = client.subscribe(sage_subject).await;
-            let status_result = client.subscribe(status_subject).await;
-
-            match (sage_result, status_result) {
-                (Ok(mut sage_sub), Ok(mut status_sub)) => {
-                    // Wait for any message and convert to TEA Message
-                    tokio::select! {
-                        Some(msg) = sage_sub.next() => {
-                            match serde_json::from_slice::<cim_claude_gui::sage_client::SageResponse>(&msg.payload) {
-                                Ok(response) => {
-                                    Some((Message::SageResponseReceived(response), (Some(client), domain.clone())))
-                                }
-                                Err(e) => {
-                                    Some((Message::Error(format!("SAGE parse error: {}", e)), (Some(client), domain.clone())))
-                                }
-                            }
-                        }
-                        Some(msg) = status_sub.next() => {
-                            match serde_json::from_slice::<cim_claude_gui::sage_client::SageStatus>(&msg.payload) {
-                                Ok(status) => {
-                                    Some((Message::SageStatusReceived(status), (Some(client), domain.clone())))
-                                }
-                                Err(e) => {
-                                    Some((Message::Error(format!("Status parse error: {}", e)), (Some(client), domain.clone())))
-                                }
-                            }
-                        }
-                    }
-                }
-                _ => {
-                    Some((Message::ConnectionError("Failed to subscribe to SAGE".to_string()), (Some(client), domain.clone())))
-                }
-            }
-        })
-    )
+    // Use the fixed NATS client with proper event stream
+    nats_client_fixed::nats_subscription()
 }
 
 #[tokio::main]
 async fn main() -> iced::Result {
     // Initialize logging
     tracing_subscriber::fmt::init();
+    
+    // Initialize NATS client before starting GUI
+    if let Err(e) = nats_client_fixed::initialize_nats().await {
+        tracing::error!("Failed to initialize NATS: {}", e);
+        // Continue with GUI but show connection error
+    }
     
     iced::application(
         "CIM Claude GUI Manager", 

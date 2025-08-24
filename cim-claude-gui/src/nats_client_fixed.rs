@@ -62,13 +62,22 @@ async fn sage_response_handler(
     client: async_nats::Client,
     response_map: Arc<RwLock<HashMap<String, oneshot::Sender<SageResponse>>>>
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // Subscribe to SAGE responses
-    let mut sage_subscriber = client.subscribe("sage.response.*").await?;
-    info!("📡 SAGE response handler subscribed to sage.response.*");
+    // Get hostname for domain-aware subject
+    let domain = hostname::get()
+        .ok()
+        .and_then(|h| h.to_str().map(|s| s.to_string()))
+        .unwrap_or_else(|| "default".to_string());
     
-    // Also subscribe to status responses
-    let mut status_subscriber = client.subscribe("sage.status.response").await?;
-    info!("📡 SAGE status handler subscribed to sage.status.response");
+    let response_subject = format!("{}.events.sage.response.*", domain);
+    
+    // Subscribe to SAGE responses
+    let mut sage_subscriber = client.subscribe(response_subject.clone()).await?;
+    info!("📡 SAGE response handler subscribed to {}", response_subject);
+    
+    // Also subscribe to status responses with domain support
+    let status_subject = format!("{}.events.sage.status_response", domain);
+    let mut status_subscriber = client.subscribe(status_subject.clone()).await?;
+    info!("📡 SAGE status handler subscribed to {}", status_subject);
     
     loop {
         tokio::select! {
@@ -142,7 +151,15 @@ pub async fn send_sage_request_correlated(request: SageRequest) -> Result<SageRe
     let request_json = serde_json::to_vec(&request)
         .map_err(|e| format!("Failed to serialize request: {}", e))?;
     
-    client.publish("sage.request", request_json.into()).await
+    // Get hostname for domain-aware subject
+    let domain = hostname::get()
+        .ok()
+        .and_then(|h| h.to_str().map(|s| s.to_string()))
+        .unwrap_or_else(|| "default".to_string());
+    
+    let subject = format!("{}.commands.sage.request", domain);
+    
+    client.publish(subject.clone(), request_json.into()).await
         .map_err(|e| format!("Failed to publish request: {}", e))?;
     
     info!("📤 Published SAGE request: {}", request_id);
@@ -218,9 +235,16 @@ pub mod commands {
         match get_nats_client() {
             Some(client) => {
                 info!("Requesting SAGE status");
-                match client.publish("sage.status", "{}".into()).await {
+                // Get domain for status request
+                let domain = hostname::get()
+                    .ok()
+                    .and_then(|h| h.to_str().map(|s| s.to_string()))
+                    .unwrap_or_else(|| "default".to_string());
+                let status_subject = format!("{}.queries.sage.status", domain);
+                
+                match client.publish(status_subject.clone(), "{}".into()).await {
                     Ok(_) => {
-                        info!("SAGE status request sent");
+                        info!("SAGE status request sent to: {}", status_subject);
                         Message::SageStatusRequested
                     }
                     Err(e) => {
@@ -246,7 +270,13 @@ pub fn nats_event_stream() -> impl Stream<Item = Message> {
                 let mut status_subscriber = match state {
                     Some(sub) => sub,
                     None => {
-                        match client.subscribe("sage.status.response").await {
+                        // Get domain for status subscription
+                        let domain = hostname::get()
+                            .ok()
+                            .and_then(|h| h.to_str().map(|s| s.to_string()))
+                            .unwrap_or_else(|| "default".to_string());
+                        let status_subject = format!("{}.events.sage.status_response", domain);
+                        match client.subscribe(status_subject.clone()).await {
                             Ok(sub) => {
                                 info!("📡 Status event stream subscribed");
                                 sub

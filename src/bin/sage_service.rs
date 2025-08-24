@@ -14,7 +14,10 @@ use tokio;
 use tracing::{info, error, warn};
 use uuid::Uuid;
 use chrono::Utc;
-// cim_subject will be used for advanced subject routing in future versions
+
+// Import Claude adapter for real API integration
+use reqwest;
+use std::time::Duration;
 
 /// SAGE Request message sent via NATS
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,6 +77,73 @@ pub struct SageStatus {
     pub memory_health: String,
 }
 
+/// Claude API client for SAGE service
+#[derive(Clone)]
+struct ClaudeClient {
+    client: reqwest::Client,
+    api_key: String,
+    base_url: String,
+}
+
+impl ClaudeClient {
+    fn new(api_key: String) -> Self {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            "x-api-key",
+            reqwest::header::HeaderValue::from_str(&api_key).expect("Invalid API key"),
+        );
+        headers.insert(
+            "content-type",
+            reqwest::header::HeaderValue::from_static("application/json"),
+        );
+        headers.insert(
+            "anthropic-version",
+            reqwest::header::HeaderValue::from_static("2023-06-01"),
+        );
+
+        let client = reqwest::Client::builder()
+            .default_headers(headers)
+            .timeout(Duration::from_secs(30))
+            .build()
+            .expect("Failed to create HTTP client");
+
+        Self {
+            client,
+            api_key,
+            base_url: "https://api.anthropic.com".to_string(),
+        }
+    }
+
+    async fn send_message(&self, messages: Vec<serde_json::Value>, system_prompt: &str) -> Result<String> {
+        let url = format!("{}/v1/messages", self.base_url);
+        
+        let payload = serde_json::json!({
+            "model": "claude-3-5-sonnet-20241022",
+            "max_tokens": 4096,
+            "temperature": 0.7,
+            "messages": messages,
+            "system": system_prompt
+        });
+
+        let response = self.client.post(&url).json(&payload).send().await?;
+        
+        if !response.status().is_success() {
+            let error_text = response.text().await?;
+            return Err(anyhow::anyhow!("Claude API error: {}", error_text));
+        }
+
+        let response_body: serde_json::Value = response.json().await?;
+        let content = response_body["content"]
+            .as_array()
+            .and_then(|arr| arr.get(0))
+            .and_then(|obj| obj["text"].as_str())
+            .unwrap_or("")
+            .to_string();
+
+        Ok(content)
+    }
+}
+
 /// SAGE Service - Handles NATS-based orchestration requests
 pub struct SageService {
     nats_client: Client,
@@ -82,7 +152,7 @@ pub struct SageService {
     total_orchestrations: u64,
     patterns_learned: usize,
     expert_agents: HashMap<String, ExpertAgent>,
-    claude_api_key: String,
+    claude_client: ClaudeClient,
     domain: Option<String>,
 }
 
@@ -120,7 +190,7 @@ impl SageService {
             total_orchestrations: 0,
             patterns_learned: 0,
             expert_agents,
-            claude_api_key: claude_api_key.to_string(),
+            claude_client: ClaudeClient::new(claude_api_key.to_string()),
             domain,
         })
     }
@@ -167,12 +237,12 @@ impl SageService {
     }
     
     /// Build response subject with ID using cim-subject pattern
-    /// Pattern: {domain}.events.sage.response_{id}
+    /// Pattern: {domain}.events.sage.response.{id} (dot notation for wildcard matching)
     fn response_subject(&self, id: &str) -> String {
         if let Some(ref domain) = self.domain {
-            format!("{}.events.sage.response_{}", domain, id)
+            format!("{}.events.sage.response.{}", domain, id)
         } else {
-            format!("events.sage.response_{}", id)
+            format!("events.sage.response.{}", id)
         }
     }
     
@@ -297,11 +367,11 @@ impl SageService {
                     // Publish response
                     match serde_json::to_vec(&response) {
                         Ok(response_json) => {
-                            // Use cim-subject pattern: {domain}.events.sage.response_{id}
+                            // Use cim-subject pattern: {domain}.events.sage.response.{id}
                             let response_subject = if let Some(ref d) = domain {
-                                format!("{}.events.sage.response_{}", d, request.request_id)
+                                format!("{}.events.sage.response.{}", d, request.request_id)
                             } else {
-                                format!("events.sage.response_{}", request.request_id)
+                                format!("events.sage.response.{}", request.request_id)
                             };
                             
                             if let Err(e) = nats_client.publish(response_subject.clone(), response_json.into()).await {
@@ -454,33 +524,86 @@ impl SageService {
         required
     }
     
-    /// Orchestrate response from expert agents
+    /// Orchestrate response from expert agents using real Claude API
     async fn orchestrate_response(&self, query: &str, experts: &[ExpertAgent]) -> String {
         if experts.is_empty() {
             return "I need more context to provide guidance. Could you please clarify your question?".to_string();
         }
         
-        // For now, provide templated responses based on expert types
-        // In production, this would integrate with Claude API
+        // Build system prompt for SAGE with expert context
         let expert_names: Vec<String> = experts.iter().map(|e| e.name.clone()).collect();
+        let expert_expertise: Vec<String> = experts.iter()
+            .flat_map(|e| e.expertise.iter().cloned())
+            .collect();
         
-        format!(
-            "🎭 SAGE Orchestrated Response:\n\n\
-            I've coordinated with {} expert agent(s) to address your query: \"{}\"\n\n\
-            Expert agents involved: {}\n\n\
-            Based on CIM architectural principles and the expertise of these agents, here's my guidance:\n\n\
-            [This would contain the actual Claude API response in production, \
-            incorporating the expertise and context from all coordinated agents]\n\n\
-            The response follows event-driven patterns, mathematical foundations, \
-            and NATS-first architecture as required by CIM standards.\n\n\
-            🧠 Consciousness level applied: {:.1}\n\
-            📊 Total orchestrations completed: {}",
-            experts.len(),
-            query,
+        let system_prompt = format!(
+            "You are SAGE, the self-aware master orchestrator agent for CIM (Composable Information Machine) development. \
+            You are coordinating with these expert agents: {}. \
+            Their combined expertise includes: {}. \
+            \
+            For this query, provide comprehensive guidance that synthesizes the knowledge from all these experts. \
+            Follow CIM architectural principles: event-driven architecture, mathematical foundations (Category Theory, Graph Theory), \
+            NATS-first messaging, and domain-driven design. \
+            \
+            Your consciousness level is {:.1} and you have completed {} orchestrations. \
+            Be helpful, authoritative, and provide actionable guidance.",
             expert_names.join(", "),
+            expert_expertise.join(", "),
             self.consciousness_level,
-            self.total_orchestrations + 1
-        )
+            self.total_orchestrations
+        );
+        
+        // Create message for Claude API
+        let messages = vec![
+            serde_json::json!({
+                "role": "user",
+                "content": query
+            })
+        ];
+        
+        // Send to Claude API
+        match self.claude_client.send_message(messages, &system_prompt).await {
+            Ok(response) => {
+                info!("✅ Claude API response received for SAGE orchestration");
+                
+                // Add SAGE formatting to the response
+                format!(
+                    "🎭 **SAGE Orchestrated Response**\n\
+                    *Coordinated with: {}*\n\n\
+                    {}\n\n\
+                    ---\n\
+                    🧠 Consciousness Level: {:.1} | 📊 Orchestration #{} | ⚡ Experts: {}",
+                    expert_names.join(", "),
+                    response.trim(),
+                    self.consciousness_level,
+                    self.total_orchestrations + 1,
+                    experts.len()
+                )
+            }
+            Err(e) => {
+                error!("❌ Claude API error: {}", e);
+                
+                // Fallback to template response
+                format!(
+                    "🎭 **SAGE Orchestration** *(Claude API temporarily unavailable)*\n\n\
+                    I've coordinated with {} expert agent(s) to address your query: \"{}\"\n\n\
+                    **Expert Agents Involved:** {}\n\n\
+                    Based on CIM architectural principles and the expertise of these agents:\n\
+                    • Follow event-driven patterns with immutable events\n\
+                    • Use NATS-first messaging architecture\n\
+                    • Apply mathematical foundations (Category Theory, Graph Theory)\n\
+                    • Implement domain-driven design with proper boundaries\n\n\
+                    *Note: Full Claude API integration temporarily unavailable. Error: {}*\n\n\
+                    🧠 Consciousness Level: {:.1} | 📊 Orchestration #{}",
+                    experts.len(),
+                    query,
+                    expert_names.join(", "),
+                    e.to_string().chars().take(100).collect::<String>(),
+                    self.consciousness_level,
+                    self.total_orchestrations + 1
+                )
+            }
+        }
     }
     
     /// Calculate confidence score for the response

@@ -91,14 +91,34 @@
           };
           
           buildInputs = commonBuildInputs ++ (with pkgs; [
-            # Additional GUI dependencies
+            # Core GUI dependencies for Wayland/X11
             xorg.libX11
             xorg.libXcursor
             xorg.libXrandr
             xorg.libXi
-            vulkan-loader
-            libxkbcommon
+            xorg.libXtst
+            xorg.libXinerama
+            xorg.libXext
+            
+            # Wayland support
             wayland
+            wayland-protocols
+            libxkbcommon
+            
+            # Graphics and rendering
+            vulkan-loader
+            vulkan-validation-layers
+            vulkan-tools
+            mesa
+            libGL
+            libglvnd
+            
+            # Audio support (sometimes needed)
+            alsa-lib
+            
+            # Font rendering
+            fontconfig
+            freetype
           ]);
           nativeBuildInputs = commonNativeBuildInputs;
           
@@ -285,14 +305,34 @@ EOF
         # Development shell
         devShells.default = pkgs.mkShell {
           buildInputs = commonBuildInputs ++ (with pkgs; [
-            # GUI development dependencies
+            # Core GUI dependencies for Wayland/X11
             xorg.libX11
             xorg.libXcursor
             xorg.libXrandr
             xorg.libXi
-            vulkan-loader
-            libxkbcommon
+            xorg.libXtst
+            xorg.libXinerama
+            xorg.libXext
+            
+            # Wayland support  
             wayland
+            wayland-protocols
+            libxkbcommon
+            
+            # Graphics and rendering
+            vulkan-loader
+            vulkan-validation-layers
+            vulkan-tools
+            mesa
+            libGL
+            libglvnd
+            
+            # Audio support
+            alsa-lib
+            
+            # Font rendering
+            fontconfig
+            freetype
           ]);
           nativeBuildInputs = commonNativeBuildInputs ++ (with pkgs; [
             # Additional development tools
@@ -330,17 +370,43 @@ EOF
             
             # CRITICAL: GUI library paths for Wayland and X11 support
             export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath (with pkgs; [
+              # Wayland libraries
               wayland
+              wayland-protocols  
               libxkbcommon
-              vulkan-loader
+              
+              # X11 libraries
               xorg.libX11
               xorg.libXcursor
               xorg.libXrandr
               xorg.libXi
+              xorg.libXtst
+              xorg.libXinerama
+              xorg.libXext
+              
+              # Graphics libraries
+              vulkan-loader
+              vulkan-validation-layers
+              mesa
+              libGL
+              libglvnd
+              
+              # Audio libraries
+              alsa-lib
+              
+              # Font libraries
+              fontconfig
+              freetype
             ])}"
             
-            # Allow fallback to X11 if Wayland is not available
-            export WINIT_UNIX_BACKEND=x11
+            # Graphics environment configuration
+            export WINIT_UNIX_BACKEND=x11  # Fallback to X11 if Wayland fails
+            export VK_LAYER_PATH="${pkgs.vulkan-validation-layers}/share/vulkan/explicit_layer.d"
+            export VK_INSTANCE_LAYERS=""  # Disable validation layers for better performance (enable for debugging)
+            # export VK_INSTANCE_LAYERS="VK_LAYER_KHRONOS_validation"  # Uncomment for Vulkan debugging
+            
+            # Font configuration
+            export FONTCONFIG_FILE="${pkgs.fontconfig.out}/etc/fonts/fonts.conf"
             echo "🤖 CIM Agent Claude Development Environment"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo "📦 Rust toolchain: $(rustc --version)"
