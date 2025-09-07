@@ -1,0 +1,53 @@
+// # scheme: "Tokyodark"
+// # author: "Tiagovla (https://github.com/tiagovla/)"
+// # slug: "tokyodark"
+
+$base00: #11121d;
+$base01: #151621;
+$base02: #43444f;
+$base03: #393a45;
+$base04: #1b1c27;
+$base05: #abb2bf;
+$base06: #555661;
+$base07: #2c2d38;
+$base08: #a485dd;
+$base09: #a485dd;
+$base0A: #7199ee;
+$base0B: #d7a65f;
+$base0C: #a485dd;
+$base0D: #95c561;
+$base0E: #ee6d85;
+$base0F: #773440;
+
+$bg: $base00;
+$bg-alt: $base01;
+$bg-progress: $base01;
+$bg-selected: $base02;
+$bg-urgent: $base09;
+$bg-low-priority: $base06;
+$bg-warning: $base0A;
+$bg-high-priority: $base0F;
+$bg-error: $base08;
+$border-win-unfocused: $base03;
+$border-win-urgent: $base08;
+$border-win-focused: $base0D;
+$border-notify: $base0D;
+$color: $base05;
+$color-dark: $base04;
+$color-progress: $base02;
+$color-bright: $base07;
+$color-light: $base06;
+$text-alt: $base04;
+$text-default: $base05;
+$text-win-title: $base05;
+$text-var: $base08;
+$text-comment: $base03;
+$text-high-priority: $base08;
+$text-num: $base09;
+$text-bold: $base0A;
+$text-low-priority: $base0A;
+$text-dim: $base0F;
+$text: $base0B;
+$quote: $base0C;
+$action: $base0D;
+$const: $base0E;

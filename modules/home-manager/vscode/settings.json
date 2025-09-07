@@ -1,0 +1,122 @@
+{
+  "[drv]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[nix]": {
+    "editor.defaultFormatter": "jnoortheen.nix-ide"
+  },
+  "[scss]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[yaml]": {
+    "editor.defaultFormatter": "redhat.vscode-yaml"
+  },
+  "diffEditor": {
+    "ignoreTrimWhitespace": true
+  },
+  "dotenv": {
+    "enableAutocloaking": false
+  },
+  "editor": {
+    "fontFamily": "Fira Code",
+    "fontLigatures": true,
+    "parameterHints": {
+      "enabled": true
+    },
+    "stickyTabStops": true,
+    "suggestOnTriggerCharacters": true,
+    "tabSize": 2,
+    "tokenColorCustomizations": {
+      "textMateRules": []
+    }
+  },
+  "editor.fontFamily": "'DejaVu Sans Mono'",
+  "explorer": {
+    "confirmDelete": false,
+    "confirmDragAndDrop": false,
+    "confirmPasteNative": false
+  },
+  "files": {
+    "associations": {
+      ".env*": "dotenv"
+    }
+  },
+  "git": {
+    "confirmSync": false,
+    "openRepositoryInParentFolders": "never"
+  },
+  "githubIssues": {
+    "queries": [
+      {
+        "groupBy": [
+          "milestone"
+        ],
+        "label": "My Issues",
+        "query": "is:open assignee:${user} repo:${owner}/${repository}"
+      },
+      {
+        "label": "Created Issues",
+        "query": "author:${user} state:open repo:${owner}/${repository} sort:created-desc"
+      },
+      {
+        "label": "Recent Issues",
+        "query": "state:open repo:${owner}/${repository} sort:updated-desc"
+      }
+    ]
+  },
+  "go": {
+    "showWelcome": false
+  },
+  "lldb": {
+    "suppressUpdateNotifications": true
+  },
+  "nix": {
+    "enableLanguageServer": true,
+    "formatterPath": [
+      "alejandra"
+    ],
+    "serverPath": "nil",
+    "serverSettings": {
+      "nil": {
+        "formatting": {
+          "command": [
+            "alejandra"
+          ]
+        }
+      },
+      "nixd": {
+        "formatting": {
+          "command": [
+            "alejandra"
+          ]
+        }
+      }
+    }
+  },
+  "terminal": {
+    "integrated": {
+      "fontFamily": "Fira Sans"
+    }
+  },
+  "terminal.integrated.fontFamily": "'DejaVu Sans Mono'",
+  "vsicons": {
+    "dontShowNewVersionMessage": true
+  },
+  "workbench": {
+    "colorTheme": "Tokyo Night Dark",
+    "editorAssociations": {
+      "*.json": "default"
+    },
+    "iconTheme": "vscode-icons",
+    "startupEditor": "none",
+    "welcomePage": {
+      "walkthroughs": {
+        "openOnInstall": false
+      }
+    }
+  },
+  "workbench.colorTheme": "Stylix",
+  "window.newWindowProfile": "Steele",
+  "alejandra.program": "/run/current-system/sw/bin/alejandra",
+  "window.zoomLevel": 4
+}

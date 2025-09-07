@@ -1,0 +1,53 @@
+// mountain
+
+$base00: #07060A; // Dark Background
+$base01: #8D4F6E; // Alternate Background
+$base02: #21223B; // Selected Background
+$base03: #E18574; // Unfocused Border / Comment
+$base04: #572146; // Dark Text Alternative
+$base05: #371732; // Default Text
+$base06: #EBC29C; // Low Priority Background / Light Text
+$base07: #E18574; // Bright Color
+$base08: #150E1C; // Error Background / High Priority Text / Urgent Border / Variable Text
+$base09: #586793; // Urgent Background / Number Text
+$base0A: #1A1631; // Warning Background / Bold Text / Low Priority Text
+$base0B: #8B2F52; // Text
+$base0C: #3C4878; // Quote
+$base0D: #C25164; // Action / Notify Border / Focused Border
+$base0E: #603363; // Constant
+$base0F: #A08293; // High Priority Background / Dim Text
+
+
+$action: #C25164; // base0D
+$bg-alt: #8D4F6E; // base01
+$bg: #07060A; // base00
+$bg-error: #150E1C; // base08
+$bg-high-priority: #A08293; // base0F
+$bg-low-priority: #EBC29C; // base06
+$bg-progress: #8D4F6E; // base01
+$bg-selected: #21223B; // base02
+$bg-urgent: #586793; // base09
+$bg-warning: #1A1631; // base0A
+$border-notify: #C25164; // base0D
+$border-win-focused: #C25164; // base0D
+$border-win-unfocused: #E18574; // base03
+$border-win-urgent: #150E1C; // base08
+$color-bright: #E18574; // base07
+$color-dark: #572146; // base04
+$color: #371732; // base05
+$color-light: #EBC29C; // base06
+$color-progress: #21223B; // base02
+$comment: #E18574; // base03
+$const: #603363; // base0E
+$dark-text: #07060A; // base00
+$quote: #3C4878; // base0C
+$text: #8B2F52; // base0B
+$text-alt: #572146; // base04
+$text-bold: #1A1631; // base0A
+$text-default: #371732; // base05
+$text-dim: #A08293; // base0F
+$text-high-priority: #150E1C; // base08
+$text-low-priority: #1A1631; // base0A
+$text-num: #586793; // base09
+$text-var: #150E1C; // base08
+$text-win-title: #371732; // base05

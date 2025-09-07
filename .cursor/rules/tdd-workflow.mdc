@@ -1,0 +1,60 @@
+# Test-Driven Development Workflow
+
+## Red-Green-Refactor Cycle
+
+### 1. Red Phase
+- Write a failing test that defines desired behavior
+- Run test to confirm it fails
+- Failure validates test is checking the right thing
+
+### 2. Green Phase
+- Write minimal code to make test pass
+- Focus on making it work, not perfect
+- Run test to confirm it passes
+
+### 3. Refactor Phase
+- Improve code structure without changing behavior
+- Extract methods, remove duplication
+- Ensure all tests still pass
+
+## Test Structure
+
+### Unit Tests
+```rust
+#[test]
+fn should_process_valid_event() {
+    // Given
+    let event = create_test_event();
+    let processor = EventProcessor::new();
+    
+    // When
+    let result = processor.process(event);
+    
+    // Then
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap().status, Status::Processed);
+}
+```
+
+### Integration Tests
+```rust
+#[tokio::test]
+async fn should_handle_full_workflow() {
+    // Given
+    let service = setup_test_service().await;
+    
+    // When
+    let response = service.execute_workflow().await;
+    
+    // Then
+    assert_eq!(response.status(), StatusCode::OK);
+}
+```
+
+## Testing Best Practices
+- **Test One Thing**: Each test should verify a single behavior
+- **Descriptive Names**: Test names should describe what they test
+- **Arrange-Act-Assert**: Structure tests consistently
+- **Test Edge Cases**: Include boundary conditions and error cases
+- **Keep Tests Fast**: Mock external dependencies
+- **Test Public API**: Focus on behavior, not implementation

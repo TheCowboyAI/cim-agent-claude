@@ -1,0 +1,64 @@
+# Rust Coding Standards
+
+## Code Organization
+- One module per file for complex modules
+- Group related functionality in modules
+- Keep public API surface minimal
+- Use `mod.rs` for module organization
+
+## Naming Conventions
+- **Types**: PascalCase (e.g., `EventStore`)
+- **Functions/Methods**: snake_case (e.g., `process_event`)
+- **Constants**: SCREAMING_SNAKE_CASE (e.g., `MAX_RETRIES`)
+- **Modules**: snake_case (e.g., `event_handler`)
+
+## Error Handling
+```rust
+// Use custom error types
+#[derive(Debug, thiserror::Error)]
+pub enum ServiceError {
+    #[error("Connection failed: {0}")]
+    ConnectionFailed(String),
+    
+    #[error("Invalid state: {0}")]
+    InvalidState(String),
+}
+
+// Return Result types
+pub fn process() -> Result<(), ServiceError> {
+    // Implementation
+}
+```
+
+## Testing
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_happy_path() {
+        // Arrange
+        let input = setup_test_data();
+        
+        // Act
+        let result = function_under_test(input);
+        
+        // Assert
+        assert!(result.is_ok());
+    }
+}
+```
+
+## Documentation
+- Document all public APIs
+- Include examples in doc comments
+- Use `///` for item documentation
+- Use `//!` for module documentation
+
+## Performance
+- Profile before optimizing
+- Prefer iterators over collecting
+- Use `&str` over `String` when possible
+- Consider `Arc` for shared immutable data
+- Use `Cow` for potentially borrowed data

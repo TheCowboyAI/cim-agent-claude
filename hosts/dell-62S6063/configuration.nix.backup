@@ -1,0 +1,165 @@
+{pkgs, lib, inputs, ...}: {
+  # Base Host config
+  system.stateVersion = "23.11";
+
+  # TIME
+  time.timeZone = lib.mkDefault "America/Phoenix";
+
+  # Select internationalisation properties.
+  i18n.defaultLocale = lib.mkDefault "en_US.UTF-8";
+
+  nixpkgs.config.allowUnfree = true;
+
+
+  environment.variables = lib.mkDefault {
+    BROWSER = "${pkgs.google-chrome}/bin/google-chrome-stable";
+    MOZ_ENABLE_WAYLAND = "1";
+    WAYLAND_DISPLAY = "1";
+    EDITOR = "hx";
+    DIRENV_LOG_FORMAT = "";
+    ANKI_WAYLAND = "1";
+    DISABLE_QT5_COMPAT = "0";
+    WINIT_UNIX_BACKEND = "wayland";
+    VK_LAYER_PATH = "${pkgs.vulkan-validation-layers}/share/vulkan/explicit_layer.d";
+  };
+
+  # Ensure hyprshot is in PATH
+  environment.sessionVariables = {
+    PATH = [
+      "$HOME/.local/bin"
+      "$PATH"
+      "${pkgs.hyprshot}/bin"
+    ];
+  };
+
+  # let me change configs and use cachix
+  nix.settings.trusted-users = ["root" "steele"];
+  nix.settings.auto-optimise-store = true;
+  nix.gc = {
+    automatic = true;
+    randomizedDelaySec = "14m";
+    options = "--delete-older-than 10d";
+  };
+
+  code-cursor.enable = true;
+  services.claude-code = {
+    enable = true;
+    apiKeyFile = "/claude-code/anthropic.key";
+  };
+  # services.claudia = {
+  #   enable = true;
+  #   autoStart = false;
+  # };
+  services.nixmcp.enable = true;
+  services.arxivmcp.enable = false;
+
+  # Install CIM Claude GUI with proper runtime wrapper
+  environment.systemPackages = [
+    pkgs.cim-claude-gui
+    (pkgs.writeShellScriptBin "cim-claude-gui-wayland" ''
+      export WAYLAND_DISPLAY="''${WAYLAND_DISPLAY}"
+      export XDG_RUNTIME_DIR="''${XDG_RUNTIME_DIR}"
+      export LD_LIBRARY_PATH="${lib.makeLibraryPath [
+        pkgs.wayland
+        pkgs.wayland-protocols  
+        pkgs.libxkbcommon
+        pkgs.libGL
+        pkgs.vulkan-loader
+      ]}:''${LD_LIBRARY_PATH:-}"
+      exec ${pkgs.cim-claude-gui}/bin/cim-claude-gui "$@"
+    '')
+  ];
+
+  services.cim-agent-claude = {
+    enable = true;
+    package = pkgs.cim-agent-claude;
+    
+    # SAGE orchestration service (core intelligence)
+    sage = {
+      enable = true;
+      package = pkgs.cim-sage-service;
+      
+      claude = {
+        apiKeyFile = "/etc/cim-claude/api-key.txt";
+      };
+      
+      nats = {
+        url = "nats://localhost:4222";
+        sageSubject = "cim.sage";
+      };
+      
+      server = {
+        host = "127.0.0.1";
+        port = 8082;
+      };
+      
+      observability = {
+        logLevel = "INFO";
+      };
+      
+      # Use environment file for SAGE secrets
+      environmentFile = "/etc/cim-claude/environment";
+    };
+
+    # Claude API Adapter service
+    adapter = {
+      enable = true;
+      
+      claude = {
+        apiKeyFile = "/etc/cim-claude/api-key.txt";
+        model = "claude-3-5-sonnet-20241022";
+        maxTokens = 4096;
+        temperature = 0.7;
+      };
+      
+      nats = {
+        url = "nats://localhost:4222";
+        subject_prefix = "cim.claude";
+      };
+      
+      server = {
+        host = "127.0.0.1";
+        port = 8080;
+      };
+      
+      observability = {
+        logLevel = "INFO";
+        metricsEnabled = true;
+        metricsPort = 9090;
+      };
+      
+      # Use environment file to properly set CLAUDE_API_KEY
+      environmentFile = "/etc/cim-claude/environment";
+    };
+
+    # Desktop GUI application
+    gui = {
+      enable = true;
+      package = pkgs.cim-claude-gui;
+    };
+    
+    # Web interface (temporarily disabled due to DNS issues in WASM build)
+    web = {
+      enable = false;
+      package = pkgs.cim-claude-gui-wasm;
+      virtualHost = "cim-claude.local";
+      port = 8081;
+    };
+  };
+
+
+  services.yubikey = {
+    enable = true;
+    
+    # Disable specific components as needed
+    oath.enable = false;  # Disable OATH/TOTP support
+    
+    # Enable development tools
+    development.enable = true;
+    
+    # Configure PAM
+    pam = {
+      enable = true;
+    };
+  };
+}

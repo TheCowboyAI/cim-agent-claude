@@ -1,0 +1,10 @@
+organizations:
+  - me:
+    - name: Steele Price
+    - desc: an individual
+  - trust:
+    - name: Price Family Revocable Trust
+    - desc: the family Trust
+  - ranch:
+    - name: Auger Steading
+    - desc: Price family ranch

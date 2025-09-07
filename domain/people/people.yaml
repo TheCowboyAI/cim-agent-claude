@@ -1,0 +1,24 @@
+people:
+  - me: 
+    - name: Steele Price
+    - login: steele
+    - full_name: Harry Steele Price, IV
+  - mom:
+    - name: Valerie Price
+    - login: valerie
+    - full_name: Valerie Knost Price
+    - aka: Valerie Jean Price
+    - aka: Valerie Jean Knost
+  - janie: 
+    - name: Janie Price
+    - login: janie
+    - full_name: Paula Jane Price
+  - harry: 
+    - name: Harry Price
+    - login: harry
+    - full_name: Harry Steele Price, V
+  - kelly: 
+    - name: Kelly Price
+    - login: kelly
+    - full_name: Kelly Ann Price
+    

@@ -1,0 +1,104 @@
+# Domain-Driven Design Patterns
+
+## Bounded Contexts
+Each context has its own:
+- Ubiquitous language
+- Domain models
+- Database schemas
+- Team ownership
+
+## Aggregate Design
+
+### Aggregate Root
+```rust
+pub struct Order {
+    id: OrderId,
+    customer_id: CustomerId,
+    items: Vec<OrderItem>,
+    status: OrderStatus,
+    version: u64,
+}
+
+impl Order {
+    // All modifications go through aggregate root
+    pub fn add_item(&mut self, item: OrderItem) -> Result<(), DomainError> {
+        self.validate_can_add_item(&item)?;
+        self.items.push(item);
+        self.record_event(OrderItemAdded { /* ... */ });
+        Ok(())
+    }
+    
+    // Enforce invariants
+    fn validate_can_add_item(&self, item: &OrderItem) -> Result<(), DomainError> {
+        if self.status != OrderStatus::Draft {
+            return Err(DomainError::InvalidState);
+        }
+        Ok(())
+    }
+}
+```
+
+### Value Objects
+```rust
+#[derive(Debug, Clone, PartialEq)]
+pub struct Money {
+    amount: Decimal,
+    currency: Currency,
+}
+
+impl Money {
+    pub fn new(amount: Decimal, currency: Currency) -> Result<Self, DomainError> {
+        if amount.is_negative() {
+            return Err(DomainError::InvalidAmount);
+        }
+        Ok(Self { amount, currency })
+    }
+    
+    pub fn add(&self, other: &Money) -> Result<Money, DomainError> {
+        if self.currency != other.currency {
+            return Err(DomainError::CurrencyMismatch);
+        }
+        Money::new(self.amount + other.amount, self.currency)
+    }
+}
+```
+
+## Repository Pattern
+```rust
+#[async_trait]
+pub trait OrderRepository {
+    async fn find_by_id(&self, id: OrderId) -> Result<Option<Order>, RepositoryError>;
+    async fn save(&self, order: &Order) -> Result<(), RepositoryError>;
+    async fn delete(&self, id: OrderId) -> Result<(), RepositoryError>;
+}
+```
+
+## Domain Services
+```rust
+pub struct PricingService {
+    // Inject dependencies
+}
+
+impl PricingService {
+    pub fn calculate_total(&self, order: &Order) -> Money {
+        // Complex business logic that doesn't belong to any entity
+    }
+}
+```
+
+## Domain Events
+```rust
+#[derive(Debug, Clone)]
+pub enum OrderEvent {
+    OrderPlaced { order_id: OrderId, customer_id: CustomerId },
+    OrderShipped { order_id: OrderId, tracking_number: String },
+    OrderCancelled { order_id: OrderId, reason: String },
+}
+```
+
+## Best Practices
+- **Small Aggregates**: Keep aggregates focused and cohesive
+- **Reference by ID**: Reference other aggregates by ID only
+- **Eventual Consistency**: Accept eventual consistency between aggregates
+- **Domain Language**: Use business terms in code
+- **Invariant Protection**: Enforce business rules in domain model

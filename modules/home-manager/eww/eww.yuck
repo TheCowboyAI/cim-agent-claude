@@ -1,0 +1,188 @@
+(defwidget bar []
+  (centerbox :orientation "h"
+    (workspaces)
+    (box :orientation "h" :spacing 8 :halign "center"
+      (radio)
+      (music))
+    (sidestuff)))
+
+(defwidget sidestuff []
+  (box :class "sidestuff" :orientation "h" :space-evenly false :halign "end"
+    (audio)
+  )
+)
+
+(defwidget audio []
+  (box :class "audio-container" :orientation "h" :space-evenly false :spacing 8
+    (button :onclick "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle" 
+            :class "audio-button"
+            :tooltip "Toggle Audio Mute"
+            :style "background: linear-gradient(135deg, ${audio_muted == "true" ? "#ee6d85, #a485dd" : "#95c561, #7199ee"}); border-radius: 14px; padding: 8px 10px; border: 2px solid #7c6f64; min-width: 50px; min-height: 50px; box-shadow: 0 3px 8px rgba(0,0,0,0.3);"
+            (label :class "audio-icon" 
+                   :style "font-size: 28px; color: #fbf1c7; font-weight: bold;"
+                   :text "${audio_muted == "true" ? "✕" : (audio_volume > 66 ? "♪♪♪" : (audio_volume > 33 ? "♪♪" : "♪"))}"))
+    (scale :class "audio-scale" 
+           :value audio_volume 
+           :min 0 
+           :max 100 
+           :style "min-width: 120px; margin: 0 8px;"
+           :onchange "wpctl set-volume @DEFAULT_AUDIO_SINK@ {}%")
+    (label :class "audio-text" 
+           :style "font-size: 16px; font-weight: bold; color: #d7a65f; min-width: 45px; text-align: center;"
+           :text "${audio_volume}%")
+  )
+)
+
+(defwidget workspaces []
+  (box :class "workspace-container"
+    :orientation "h"
+    :space-evenly false
+    :halign "start"
+    :spacing 12
+    
+    ; Beautiful cowboy launcher button
+    (button :onclick "just rofi-toggle" 
+            :class "launcher-btn"
+            :tooltip "Cowboy AI • Application Launcher"
+            :style "background: linear-gradient(135deg, #fbf1c7, #d7a65f); border-radius: 18px; padding: 1px; border: 2px solid #7c6f64; color: #11121d; font-size: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); min-width: 56px; min-height: 56px;"
+            (image :path "/git/steele/dell-62S6063/assets/Cowboy Logo.svg" 
+                   :image-width 72 
+                   :image-height 72))
+    
+    ; Workspace indicators container  
+    (box :class "workspace-grid"
+      :orientation "h"
+      :space-evenly false
+      :halign "start"
+      :spacing 6
+      
+      ; Workspace 1 - Dynamic styling based on current workspace
+      (button :onclick "just ws 1" 
+              :tooltip "Workspace 1"
+              :style "${active_ws == 1 ? 'background: linear-gradient(135deg, #d7a65f, #ee6d85); border-radius: 20px; padding: 10px 14px; border: 3px solid #fbf1c7; color: #11121d; font-weight: bold; font-size: 14px; min-width: 36px; box-shadow: 0 0 12px rgba(215,166,95,0.8), 0 0 20px rgba(238,109,133,0.4);' : 'background: linear-gradient(135deg, #95c561, #7199ee); border-radius: 20px; padding: 10px 14px; border: 3px solid #11121d; color: #11121d; font-weight: bold; min-width: 36px; box-shadow: 0 0 8px rgba(149,197,97,0.6);'}"
+              "1")
+      
+      ; Workspace 2 - Dynamic styling based on current workspace  
+      (button :onclick "just ws 2"
+              :tooltip "Workspace 2"
+              :style "${active_ws == 2 ? 'background: linear-gradient(135deg, #d7a65f, #ee6d85); border-radius: 20px; padding: 10px 14px; border: 3px solid #fbf1c7; color: #11121d; font-weight: bold; font-size: 14px; min-width: 36px; box-shadow: 0 0 12px rgba(215,166,95,0.8), 0 0 20px rgba(238,109,133,0.4);' : 'background: linear-gradient(135deg, #95c561, #7199ee); border-radius: 20px; padding: 10px 14px; border: 3px solid #11121d; color: #11121d; font-weight: bold; min-width: 36px; box-shadow: 0 0 8px rgba(149,197,97,0.6);'}"
+              "2")
+      
+      ; Workspace 3 - Dynamic styling based on current workspace
+      (button :onclick "just ws 3"
+              :tooltip "Workspace 3" 
+              :style "${active_ws == 3 ? 'background: linear-gradient(135deg, #d7a65f, #ee6d85); border-radius: 20px; padding: 10px 14px; border: 3px solid #fbf1c7; color: #11121d; font-weight: bold; font-size: 14px; min-width: 36px; box-shadow: 0 0 12px rgba(215,166,95,0.8), 0 0 20px rgba(238,109,133,0.4);' : 'background: linear-gradient(135deg, #95c561, #7199ee); border-radius: 20px; padding: 10px 14px; border: 3px solid #11121d; color: #11121d; font-weight: bold; min-width: 36px; box-shadow: 0 0 8px rgba(149,197,97,0.6);'}"
+              "3")
+      
+      ; Workspaces 4-10 - Dynamic styling 
+      (button :onclick "just ws 4"
+              :tooltip "Workspace 4"
+              :style "${active_ws == 4 ? 'background: linear-gradient(135deg, #d7a65f, #ee6d85); border-radius: 20px; padding: 10px 14px; border: 3px solid #fbf1c7; color: #11121d; font-weight: bold; font-size: 14px; min-width: 36px; box-shadow: 0 0 12px rgba(215,166,95,0.8), 0 0 20px rgba(238,109,133,0.4);' : 'background: #393a45; border-radius: 20px; padding: 10px 14px; border: 3px solid #555661; color: #abb2bf; min-width: 36px; opacity: 0.7;'}"
+              "4")
+      (button :onclick "just ws 5" 
+              :tooltip "Workspace 5"
+              :style "${active_ws == 5 ? 'background: linear-gradient(135deg, #d7a65f, #ee6d85); border-radius: 20px; padding: 10px 14px; border: 3px solid #fbf1c7; color: #11121d; font-weight: bold; font-size: 14px; min-width: 36px; box-shadow: 0 0 12px rgba(215,166,95,0.8), 0 0 20px rgba(238,109,133,0.4);' : 'background: #393a45; border-radius: 20px; padding: 10px 14px; border: 3px solid #555661; color: #abb2bf; min-width: 36px; opacity: 0.7;'}"
+              "5")
+      (button :onclick "just ws 6"
+              :tooltip "Workspace 6" 
+              :style "${active_ws == 6 ? 'background: linear-gradient(135deg, #d7a65f, #ee6d85); border-radius: 20px; padding: 10px 14px; border: 3px solid #fbf1c7; color: #11121d; font-weight: bold; font-size: 14px; min-width: 36px; box-shadow: 0 0 12px rgba(215,166,95,0.8), 0 0 20px rgba(238,109,133,0.4);' : 'background: #393a45; border-radius: 20px; padding: 10px 14px; border: 3px solid #555661; color: #abb2bf; min-width: 36px; opacity: 0.7;'}"
+              "6")
+      (button :onclick "just ws 7"
+              :tooltip "Workspace 7"
+              :style "${active_ws == 7 ? 'background: linear-gradient(135deg, #d7a65f, #ee6d85); border-radius: 20px; padding: 10px 14px; border: 3px solid #fbf1c7; color: #11121d; font-weight: bold; font-size: 14px; min-width: 36px; box-shadow: 0 0 12px rgba(215,166,95,0.8), 0 0 20px rgba(238,109,133,0.4);' : 'background: #393a45; border-radius: 20px; padding: 10px 14px; border: 3px solid #555661; color: #abb2bf; min-width: 36px; opacity: 0.7;'}"
+              "7")
+      (button :onclick "just ws 8"
+              :tooltip "Workspace 8"
+              :style "${active_ws == 8 ? 'background: linear-gradient(135deg, #d7a65f, #ee6d85); border-radius: 20px; padding: 10px 14px; border: 3px solid #fbf1c7; color: #11121d; font-weight: bold; font-size: 14px; min-width: 36px; box-shadow: 0 0 12px rgba(215,166,95,0.8), 0 0 20px rgba(238,109,133,0.4);' : 'background: #393a45; border-radius: 20px; padding: 10px 14px; border: 3px solid #555661; color: #abb2bf; min-width: 36px; opacity: 0.7;'}"
+              "8")
+      (button :onclick "just ws 9"
+              :tooltip "Workspace 9"
+              :style "${active_ws == 9 ? 'background: linear-gradient(135deg, #d7a65f, #ee6d85); border-radius: 20px; padding: 10px 14px; border: 3px solid #fbf1c7; color: #11121d; font-weight: bold; font-size: 14px; min-width: 36px; box-shadow: 0 0 12px rgba(215,166,95,0.8), 0 0 20px rgba(238,109,133,0.4);' : 'background: #393a45; border-radius: 20px; padding: 10px 14px; border: 3px solid #555661; color: #abb2bf; min-width: 36px; opacity: 0.7;'}"
+              "9")
+      
+      ; Workspace 10 - Dynamic styling
+      (button :onclick "just ws 10"
+              :tooltip "Workspace 10"
+              :style "${active_ws == 10 ? 'background: linear-gradient(135deg, #d7a65f, #ee6d85); border-radius: 20px; padding: 10px 14px; border: 3px solid #fbf1c7; color: #11121d; font-weight: bold; font-size: 14px; min-width: 36px; box-shadow: 0 0 12px rgba(215,166,95,0.8), 0 0 20px rgba(238,109,133,0.4);' : 'background: linear-gradient(135deg, #95c561, #7199ee); border-radius: 20px; padding: 10px 14px; border: 3px solid #11121d; color: #11121d; font-weight: bold; min-width: 36px; box-shadow: 0 0 8px rgba(149,197,97,0.6);'}"
+              "0")
+    )
+  )
+)
+
+(defwidget music []
+  (box :class "music-container"
+    :orientation "h"
+    :space-evenly false
+    :halign "center"
+    :spacing 8
+    (button :onclick "helvum &" 
+            :class "music-button"
+            :tooltip "Open Helvum PipeWire Patchbay"
+            :style "background: linear-gradient(135deg, #a485dd, #7199ee); border-radius: 14px; padding: 8px 12px; border: 2px solid #7c6f64; min-width: 46px; min-height: 46px; box-shadow: 0 3px 8px rgba(0,0,0,0.3);"
+            (label :style "font-size: 22px; color: #fbf1c7; font-weight: bold; font-family: monospace;" :text "DSP"))
+    (button :onclick "playerctl prev" 
+            :class "music-button"
+            :tooltip "Previous Track"
+            :style "background: linear-gradient(135deg, #95c561, #7199ee); border-radius: 14px; padding: 8px 12px; border: 2px solid #7c6f64; min-width: 46px; min-height: 46px; box-shadow: 0 3px 8px rgba(0,0,0,0.3);"
+            (label :style "font-size: 28px; color: #fbf1c7; font-weight: bold;" :text "◀◀"))
+    (button :onclick "playerctl play-pause" 
+            :class "music-play-button"
+            :tooltip "Music Controls"
+            :style "background: linear-gradient(135deg, #d7a65f, #ee6d85); border-radius: 18px; padding: 10px 16px; border: 3px solid #fbf1c7; min-height: 50px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); min-width: 140px;"
+            (label :style "font-size: 32px; color: #fbf1c7; font-weight: bold;" 
+                   :text "▶"))
+    (button :onclick "playerctl next" 
+            :class "music-button"
+            :tooltip "Next Track"
+            :style "background: linear-gradient(135deg, #95c561, #7199ee); border-radius: 14px; padding: 8px 12px; border: 2px solid #7c6f64; min-width: 46px; min-height: 46px; box-shadow: 0 3px 8px rgba(0,0,0,0.3);"
+            (label :style "font-size: 28px; color: #fbf1c7; font-weight: bold;" :text "▶▶"))
+  )
+)
+
+(defwidget radio []
+  (box :class "radio-container" :orientation "h" :space-evenly false :halign "center" :spacing 4
+    (button :onclick "just radio-paradise" :class "radio-button" :tooltip "Radio Paradise - Eclectic Rock/Pop" 
+            :style "background: rgba(40, 40, 50, 0.8); border-radius: 8px; padding: 2px; border: 2px solid #7c6f64; box-shadow: 0 2px 6px rgba(0,0,0,0.3);" 
+            (image :path "/git/steele/dell-62S6063/assets/radio-paradise-frame4.svg" :image-width 60 :image-height 60))
+    (button :onclick "just soma-groovesalad" :class "radio-button" :tooltip "SomaFM Groove Salad - Downtempo/Ambient" 
+            :style "background: transparent; border-radius: 8px; padding: 2px; border: 2px solid #7c6f64; box-shadow: 0 2px 6px rgba(0,0,0,0.3);" 
+            (image :path "/git/steele/dell-62S6063/assets/groovesalad.png" :image-width 60 :image-height 60))
+    (button :onclick "just soma-secretagent" :class "radio-button" :tooltip "SomaFM Secret Agent - Spy Jazz & Lounge" 
+            :style "background: transparent; border-radius: 8px; padding: 2px; border: 2px solid #7c6f64; box-shadow: 0 2px 6px rgba(0,0,0,0.3);" 
+            (image :path "/git/steele/dell-62S6063/assets/secretagent.png" :image-width 60 :image-height 60))
+    (button :onclick "just soma-deepspaceone" :class "radio-button" :tooltip "SomaFM Deep Space One - Deep Ambient Electronic" 
+            :style "background: transparent; border-radius: 8px; padding: 2px; border: 2px solid #7c6f64; box-shadow: 0 2px 6px rgba(0,0,0,0.3);" 
+            (image :path "/git/steele/dell-62S6063/assets/deepspaceone.png" :image-width 60 :image-height 60))
+  )
+)
+
+; Music deflisten removed to prevent WhatsApp spam
+
+(defpoll audio_volume :interval "1s" :initial "50"
+"wpctl get-volume @DEFAULT_AUDIO_SINK@ | awk '{print int($2*100)}'")
+
+(defpoll audio_muted :interval "1s" :initial "false"  
+"wpctl get-volume @DEFAULT_AUDIO_SINK@ | grep -q 'MUTED' && echo 'true' || echo 'false'")
+
+; Workspace state tracking - simplified for reliability
+(defpoll active_ws :interval "200ms" :initial "1"
+"hyprctl activeworkspace | head -1 | awk '{print $3}'")
+
+; Radio status polling
+(defpoll radio_status :interval "2s" :initial "stopped"
+"just radio-status")
+
+(defpoll ws_info :interval "1s" :initial ""
+"hyprctl workspaces | grep -E '^workspace ID' | awk '{print $3\":\"$7}' | paste -sd ',' -")
+
+(defwindow bar
+  :monitor 0
+  :windowtype "dock"
+  :geometry (geometry :x "0%"
+    :y "0%"
+    :width "100%"
+    :height "4%"
+  :anchor "top center")
+  :reserve (struts :side "top" :distance "4%")
+  :exclusive true
+  (bar))

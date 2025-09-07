@@ -1,0 +1,24 @@
+{
+  "nix.enableLanguageServer": true,
+  "nix.formatterPath": [
+    "nixfmt-rfc-style"
+  ],
+  "nix.serverPath": "nil",
+  "nix.serverSettings": {
+    "nil": {
+      "formatting": {
+        "command": [
+          "nixfmt-rfc-style"
+        ]
+      }
+    },
+    "nixd": {
+      "formatting": {
+        "command": [
+          "nixfmt-rfc-style"
+        ]
+      }
+    }
+  },
+  "nixfmt.program": "/run/current-system/sw/bin/nixfmt-rfc-style"
+}

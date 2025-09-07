@@ -1,0 +1,39 @@
+ws NUM:
+  hyprctl dispatch workspace {{NUM}}
+
+louder:
+  pamixer -i 5%
+
+softer:
+  pamixer -d 5%
+
+mute:
+  pamixer -t
+
+volume: 
+  pamixer --get-volume
+
+set-vol VOL: 
+  pamixer --set-volume {{VOL}}
+
+rofi:
+  rofi -show drun -theme-str 'window {width: 600px; height: 700px;}' -p "🤠 Search Applications"
+
+rofi-toggle:
+  if pgrep rofi > /dev/null; then pkill rofi; else just rofi; fi
+
+# Radio controls with simplified toggle
+radio-paradise:
+  bash -c 'if pgrep mpv > /dev/null; then pkill mpv; notify-send "📻 Radio" "Stopped" --icon=audio-headphones; else notify-send "📻 Radio Paradise" "Starting..." --icon=audio-headphones; nohup mpv --no-video --volume=70 "https://stream.radioparadise.com/aac-320" >/dev/null 2>&1 & fi'
+
+soma-groovesalad:
+  bash -c 'if pgrep mpv > /dev/null; then pkill mpv; notify-send "📻 Radio" "Stopped" --icon=audio-headphones; else notify-send "📻 Groove Salad" "Starting..." --icon=audio-headphones; nohup mpv --no-video --volume=70 "https://ice1.somafm.com/groovesalad-256-mp3" >/dev/null 2>&1 & fi'
+
+soma-secretagent:
+  bash -c 'if pgrep mpv > /dev/null; then pkill mpv; notify-send "📻 Radio" "Stopped" --icon=audio-headphones; else notify-send "📻 Secret Agent" "Starting..." --icon=audio-headphones; nohup mpv --no-video --volume=70 "https://ice1.somafm.com/secretagent-128-mp3" >/dev/null 2>&1 & fi'
+
+soma-deepspaceone:
+  bash -c 'if pgrep mpv > /dev/null; then pkill mpv; notify-send "📻 Radio" "Stopped" --icon=audio-headphones; else notify-send "📻 Deep Space One" "Starting..." --icon=audio-headphones; nohup mpv --no-video --volume=70 "https://ice1.somafm.com/deepspaceone-128-mp3" >/dev/null 2>&1 & fi'
+
+radio-status:
+  pgrep mpv > /dev/null && echo "playing" || echo "stopped"

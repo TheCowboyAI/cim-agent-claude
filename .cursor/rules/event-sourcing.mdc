@@ -1,0 +1,93 @@
+# Event Sourcing Patterns
+
+## Core Concepts
+
+### Events as Source of Truth
+- All state changes are captured as immutable events
+- Current state is derived by replaying events
+- Events are never deleted or modified
+
+### Event Structure
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DomainEvent {
+    pub event_id: Uuid,
+    pub aggregate_id: Uuid,
+    pub event_type: String,
+    pub payload: serde_json::Value,
+    pub metadata: EventMetadata,
+    pub occurred_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EventMetadata {
+    pub correlation_id: Uuid,
+    pub causation_id: Uuid,
+    pub user_id: Option<String>,
+    pub version: u64,
+}
+```
+
+## Event Store Implementation
+
+### Writing Events
+```rust
+pub async fn append_events(
+    &self,
+    aggregate_id: Uuid,
+    events: Vec<DomainEvent>,
+    expected_version: Option<u64>,
+) -> Result<(), EventStoreError> {
+    // Optimistic concurrency control
+    if let Some(version) = expected_version {
+        self.verify_version(aggregate_id, version).await?;
+    }
+    
+    // Persist events
+    self.store.append(aggregate_id, events).await?;
+    
+    // Publish to event bus
+    self.publish_events(events).await?;
+    
+    Ok(())
+}
+```
+
+### Event Replay
+```rust
+pub async fn replay_events(
+    &self,
+    aggregate_id: Uuid,
+) -> Result<Vec<DomainEvent>, EventStoreError> {
+    self.store
+        .load_events(aggregate_id)
+        .await
+}
+```
+
+## Projection Patterns
+
+### Read Model Projection
+```rust
+pub struct ReadModelProjection {
+    projection_id: String,
+    last_processed_position: u64,
+}
+
+impl ReadModelProjection {
+    pub async fn handle_event(&mut self, event: &DomainEvent) -> Result<()> {
+        match event.event_type.as_str() {
+            "UserCreated" => self.handle_user_created(event).await,
+            "UserUpdated" => self.handle_user_updated(event).await,
+            _ => Ok(()), // Ignore unknown events
+        }
+    }
+}
+```
+
+## Best Practices
+- **Event Naming**: Use past tense (e.g., OrderPlaced, PaymentReceived)
+- **Event Granularity**: One event per business action
+- **Event Versioning**: Support schema evolution
+- **Idempotency**: Handle duplicate events gracefully
+- **Snapshots**: Create periodic snapshots for performance

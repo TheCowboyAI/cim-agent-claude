@@ -1,0 +1,50 @@
+Base16ToStylix:
+  base00:
+    - bg-default
+    - dark-text
+  base01:
+    - bg-alt
+    - bg-progress
+  base02:
+    - bg-selected
+    - color-progress
+  base03:
+    - comment
+    - border-win-unfocused
+  base04:
+    - color-dark
+    - text-alt
+  base05:
+    - color-default
+    - text-default
+    - text-win-title
+  base06:
+    - color-light
+    - bg-low-priority
+  base07:
+    - color-bright
+  base08:
+    - text-var
+    - bg-error
+    - border-win-urgent
+    - text-high-priority
+  base09:
+    - text-num
+    - bg-urgent
+  base0A:
+    - text-bold
+    - bg-warning
+    - text-low-priority
+  base0B:
+    - text
+  base0C:
+    - quote
+  base0D:
+    - action
+    - border-win-focused
+    - border-notify
+  base0E:
+    - const
+  base0F:
+    - text-dim
+    - bg-high-priority

@@ -1,0 +1,49 @@
+# CIM Core Architecture
+
+## System Overview
+CIM (Cognitive Information Management) is a distributed, event-driven system built on:
+- **NATS**: Message bus for inter-component communication
+- **Event Sourcing**: All state changes captured as events
+- **CQRS**: Separation of command and query responsibilities
+- **Domain-Driven Design**: Bounded contexts and aggregates
+
+## Core Components
+
+### CIM-SAGE
+Universal agent system providing:
+- LLM integration through multiple providers
+- Event-driven architecture
+- NATS-based communication
+- Configurable provider backends
+
+### CIM-Domain
+Domain modeling and business logic:
+- Aggregate roots and entities
+- Value objects
+- Domain events
+- Business rules enforcement
+
+### CIM-Component
+Reusable system components:
+- Common traits and interfaces
+- Shared utilities
+- Cross-cutting concerns
+
+### CIM-Subject
+Identity and access management:
+- User/agent identification
+- Authentication primitives
+- Authorization contexts
+
+### CIM-IPLD
+InterPlanetary Linked Data support:
+- Content-addressable storage
+- Merkle DAG structures
+- Distributed data structures
+
+## Development Practices
+- **Test-Driven Development**: Write tests first
+- **Event Sourcing**: Capture all state changes
+- **Immutability**: Prefer immutable data structures
+- **Type Safety**: Leverage Rust's type system
+- **Error Handling**: Use Result types consistently

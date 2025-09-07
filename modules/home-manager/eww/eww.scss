@@ -1,0 +1,251 @@
+* {
+  all: unset; //Unsets everything so you can style everything from scratch
+}
+@import "./styles/tokyodark.scss"; // also set via env var
+
+//Global Styles
+.bar {
+  background-color: $bg;
+  color: $color;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid $border-win-focused;
+  box-shadow: inset 0px 0px 14px $bg-progress;
+}
+
+.sidestuff slider {
+  all: unset;
+  color: $bg-progress;
+}
+
+.metric scale trough highlight {
+  all: unset;
+  background-color: $color-progress;
+  color: $text;
+  border-radius: 10px;
+}
+.metric scale trough {
+  all: unset;
+  background-color: $bg-progress;
+  border-radius: 50px;
+  min-height: 3px;
+  min-width: 50px;
+  margin-left: 10px;
+  margin-right: 20px;
+}
+.metric scale trough highlight {
+  all: unset;
+  background-color: $color-progress;
+  color: $text-var;
+  border-radius: 10px;
+}
+.metric scale trough {
+  all: unset;
+  background-color: $bg-progress;
+  border-radius: 50px;
+  min-height: 3px;
+  min-width: 50px;
+  margin-left: 10px;
+  margin-right: 20px;
+}
+.label-ram {
+  font-size: large;
+}
+
+// Beautiful workspace styling with enhanced frosted glass
+.workspace-container {
+  padding: 8px 12px;
+  background: rgba(17, 18, 29, 0.85);
+  border-radius: 24px;
+  border: 1px solid rgba(124, 111, 100, 0.3);
+  box-shadow: 
+    0 8px 24px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(251, 241, 199, 0.1) inset,
+    0 1px 0 rgba(251, 241, 199, 0.15) inset;
+}
+
+.workspace-grid {
+  padding: 4px;
+}
+
+.launcher-btn:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6), 0 0 16px rgba(215, 166, 95, 0.4) !important;
+  background: linear-gradient(135deg, #fbf1c7, #ee6d85) !important;
+}
+
+.workspaces {
+  padding: 4px 8px;
+  background: $bg-alt;
+  border-radius: 16px;
+  border: 1px solid $border-win-unfocused;
+}
+
+// Individual workspace buttons - GTK CSS
+.ws-button {
+  all: unset;
+  background-color: $bg-alt;
+  border: 1px solid $border-win-unfocused;
+  border-radius: 8px;
+  padding: 6px;
+  margin: 2px;
+  min-width: 32px;
+  min-height: 32px;
+}
+
+.ws-button:hover {
+  background-color: $bg-selected;
+  border-color: $action;
+  box-shadow: 0 0 5px rgba(113, 153, 238, 0.3);
+}
+
+// Workspace indicator container  
+.ws-indicator {
+  /* eww uses box layouts, not flexbox */
+}
+
+// Workspace dots (activity indicators) - GTK CSS
+.ws-dot {
+  all: unset;
+  min-width: 8px;
+  min-height: 8px;
+  border-radius: 50%;
+  margin: 1px;
+}
+
+.dot-empty {
+  background-color: #555661;
+  border: 1px solid #393a45;
+}
+
+.dot-occupied {
+  background-color: #95c561;
+  border: 1px solid #7199ee;
+  box-shadow: 0 0 3px #95c561;
+}
+
+.dot-active {
+  background-color: #d7a65f;
+  border: 2px solid #d7a65f;
+  box-shadow: 0 0 8px #d7a65f;
+  min-width: 12px;
+  min-height: 12px;
+}
+
+// Workspace numbers
+.ws-number {
+  font-size: 11px;
+  font-weight: 500;
+  color: $text-var;
+  transition: all 0.2s ease;
+}
+
+.number-active {
+  color: $text;
+  font-weight: 700;
+  text-shadow: 0 0 8px $text;
+}
+
+// State-based button styling - GTK CSS with direct colors
+.ws-active {
+  background-color: rgba(215, 166, 95, 0.2);
+  border-color: #95c561;
+  box-shadow: 0 0 8px rgba(215, 166, 95, 0.4);
+}
+
+.ws-occupied {
+  background-color: rgba(149, 197, 97, 0.1);
+  border-color: #7199ee;
+}
+
+.ws-empty {
+  background-color: transparent;
+  border-color: #393a45;
+}
+
+// Animations using theme colors - simplified for eww compatibility
+@keyframes pulse-active {
+  0%, 100% { 
+    box-shadow: 0 0 12px $text;
+  }
+  50% { 
+    box-shadow: 0 0 20px $text-bold;
+  }
+}
+
+@keyframes pulse-occupied {
+  0%, 100% { 
+    box-shadow: 0 0 6px $action;
+  }
+  50% { 
+    box-shadow: 0 0 10px $border-win-focused;
+  }
+}
+
+// Enhanced Audio & Music Controls Styling with frosted glass
+.audio-container {
+  padding: 8px 12px;
+  background: rgba(17, 18, 29, 0.85);
+  border-radius: 20px;
+  border: 1px solid rgba(124, 111, 100, 0.3);
+  box-shadow: 
+    0 8px 24px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(251, 241, 199, 0.1) inset,
+    0 1px 0 rgba(251, 241, 199, 0.15) inset;
+}
+
+.music-container {
+  padding: 8px 12px;
+  background: rgba(17, 18, 29, 0.85);
+  border-radius: 20px;
+  border: 1px solid rgba(124, 111, 100, 0.3);
+  box-shadow: 
+    0 8px 24px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(251, 241, 199, 0.1) inset,
+    0 1px 0 rgba(251, 241, 199, 0.15) inset;
+}
+
+.audio-button:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 12px rgba(149, 197, 97, 0.3) !important;
+  background: linear-gradient(135deg, #7199ee, #a485dd) !important;
+}
+
+.music-button:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 12px rgba(149, 197, 97, 0.3) !important;
+  background: linear-gradient(135deg, #d7a65f, #ee6d85) !important;
+}
+
+.music-play-button:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6), 0 0 16px rgba(215, 166, 95, 0.4) !important;
+  background: linear-gradient(135deg, #fbf1c7, #ee6d85) !important;
+}
+
+.audio-scale trough {
+  background-color: #393a45;
+  border-radius: 12px;
+  min-height: 8px;
+  border: 1px solid #555661;
+}
+
+.audio-scale trough highlight {
+  background: linear-gradient(90deg, #95c561, #7199ee);
+  border-radius: 12px;
+  box-shadow: 0 0 6px rgba(149, 197, 97, 0.5);
+}
+
+// Radio widget styling with frosted glass
+.radio-container {
+  padding: 6px 10px;
+  background: rgba(17, 18, 29, 0.85);
+  border-radius: 16px;
+  border: 1px solid rgba(124, 111, 100, 0.3);
+  box-shadow: 
+    0 6px 18px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(251, 241, 199, 0.08) inset,
+    0 1px 0 rgba(251, 241, 199, 0.12) inset;
+}
+
+.radio-button:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 12px rgba(215, 166, 95, 0.3) !important;
+  background: linear-gradient(135deg, #fbf1c7, #d7a65f) !important;
+  transform: translateY(-1px);
+}
